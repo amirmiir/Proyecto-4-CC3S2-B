@@ -19,3 +19,18 @@ tools:
 	@command -v ip >/dev/null 2>&1 || { echo "Error: ip no está instalado"; exit 1; }
 	@command -v rsync >/dev/null 2>&1 || { echo "Error: rsync no está instalado"; exit 1; }
 	@echo "✓ Todas las herramientas necesarias están disponibles"
+
+build: 
+	@echo "Construyendo el proyecto..."
+
+test: 
+	@echo "Ejecutando pruebas..."
+
+run: 
+	@echo "Ejecutando la aplicación..."
+
+clean:
+	@echo "Limpiando archivos generados..."
+
+help:
+	@echo "Uso: make [target]"
