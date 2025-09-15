@@ -58,6 +58,44 @@ trap cleanup EXIT ERR INT TERM
 
 # FUNCIONES DE MONITOREO
 
+# Función para verificar conectividad HTTP
+verificar_http() {
+    local url="${1:-$CONFIG_URL}"
+    local codigo_esperado="${2:-200}"
+    local resultado_http=""
+    local codigo_status=""
+    local tiempo_respuesta=""
+    
+    log_info "Verificando HTTP: $url"
+    
+    # Realizar petición HTTP con curl y capturar información
+    if resultado_http=$(curl -s -w "%{http_code}|%{time_total}" \
+                           --max-time "$TIMEOUT" \
+                           --connect-timeout 5 \
+                           -H "User-Agent: Monitor-Redes/1.0" \
+                           "$url" 2>/dev/null); then
+        
+        # Extraer código de estado y tiempo de respuesta
+        codigo_status=$(echo "$resultado_http" | tail -1 | cut -d'|' -f1)
+        tiempo_respuesta=$(echo "$resultado_http" | tail -1 | cut -d'|' -f2)
+        
+        log_info "Código HTTP: $codigo_status"
+        log_info "Tiempo de respuesta: ${tiempo_respuesta}s"
+        
+        # Verificar si el código coincide con el esperado
+        if [[ "$codigo_status" == "$codigo_esperado" ]]; then
+            log_info "Verificación HTTP exitosa para $url"
+            return $EXIT_SUCCESS
+        else
+            log_error "Código HTTP inesperado: esperado $codigo_esperado, obtenido $codigo_status"
+            return $EXIT_ERROR_RED
+        fi
+    else
+        log_error "Error de conectividad HTTP a $url"
+        return $EXIT_ERROR_RED
+    fi
+}
+
 # Función para mostrar ayuda
 mostrar_ayuda() {
     cat << EOF
@@ -133,6 +171,7 @@ main() {
     case "${1:-ayuda}" in
         "http")
             log_info "Ejecutando verificación HTTP..."
+            verificar_http "${2:-$CONFIG_URL}" "${3:-200}"
             ;;
         "dns")
             log_info "Ejecutando verificación DNS..."
