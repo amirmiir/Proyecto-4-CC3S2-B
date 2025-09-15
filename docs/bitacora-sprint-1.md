@@ -39,9 +39,44 @@ $ ./src/gestor_procesos.sh detener
 
 Se optó por usar archivos PID en `/tmp` para el control de procesos por ser una ubicación estándar temporal. Las funciones retornan códigos de salida específicos para facilitar el debugging. Se utilizó `readonly` para las variables globales garantizando inmutabilidad. El script está preparado para expansión en Sprint 2 donde se implementará el servicio web real.
 
+### Tareas Completadas - Diego Orrego Torrejon
+
+**Implementar Makefile con targets obligatorios**
+
+Se creó el archivo `Makefile` en la raíz del proyecto con todos los targets requeridos por la especificación. El archivo incluye 6 targets principales: `tools`, `build`, `test`, `run`, `clean` y `help`. El target `tools` es el más crítico ya que verifica la disponibilidad de todas las herramientas Unix requeridas: curl, dig, ss, nc, awk, grep, sed, cut, sort, uniq, tr, tee, find, systemctl, journalctl, ip y rsync.
+
+Comando ejecutado para verificar la implementación:
+```bash
+$ make tools
+Verificando herramientas necesarias...
+Todas las herramientas necesarias están disponibles
+
+$ make help
+Uso: make [target]
+```
+
+**Verificación de herramientas del sistema**
+
+El target `tools` implementa una verificación completa usando `command -v` para cada herramienta requerida. Si alguna herramienta no está disponible, el proceso se detiene con código de salida 1 y un mensaje descriptivo. Esta implementación garantiza que el entorno cumple con todos los requisitos antes de ejecutar otras tareas del proyecto.
+
+Pruebas realizadas:
+```bash
+$ make tools
+Verificando herramientas necesarias...
+Todas las herramientas necesarias están disponibles
+
+$ echo $?
+0
+```
+
+### Decisiones Técnicas
+
+Para el Makefile se utilizó el prefijo `@` en los comandos para mantener la salida limpia y profesional. Se incluyó `.PHONY` para evitar conflictos con archivos del mismo nombre. Los targets `build`, `test`, `run` y `clean` están preparados como stubs para implementación en los siguientes sprints. La verificación de herramientas usa `command -v` que es POSIX-compliant y más confiable que `which`.
+
 ### Commits Realizados
 
 ```bash
+1412362 Agregar Makefile con tareas para verificar herramientas, construir, probar, ejecutar y limpiar el proyecto
 e1dceb7 Crear script base para gestión de procesos
 79f1bc1 Implementar funciones básicas de gestión de procesos
 ```
