@@ -4,6 +4,16 @@
 
 Sistema de gestión de procesos con enfoque en monitoreo de redes. Implementa principios de 12-Factor App para configuración mediante variables de entorno.
 
+## Configuración
+
+Para configurar el sistema, copiar el archivo de ejemplo y ajustar las variables según necesidad:
+```bash
+cp .env.example .env
+# Editar .env con valores personalizados
+```
+
+El archivo `.env` no se versiona en Git para mantener la configuración local separada del código.
+
 ## Instalación y Uso
 
 El sistema incluye dos scripts principales que requieren Bash 4.0 o superior:
@@ -80,8 +90,18 @@ Ambos scripts utilizan códigos de salida específicos según el tipo de error:
 ### Logs
 
 Los scripts generan logs en:
-- Gestor de procesos: `/tmp/gestor-logs/`
-- Monitor de redes: `/tmp/monitor-logs/`
+- Gestor de procesos: `/tmp/gestor-logs/gestor-web-YYYYMMDD.log`
+- Monitor de redes: `/tmp/monitor-logs/monitor-YYYYMMDD.log`
+
+Todos los mensajes incluyen timestamp y nivel (INFO, WARN, ERROR). El sistema de logging centralizado facilita el debugging y auditoría.
+
+## Manejo de Errores
+
+El gestor de procesos implementa manejo robusto de errores mediante:
+- **Trap ERR**: Captura errores y muestra línea y comando que falló
+- **Trap EXIT**: Limpia recursos automáticamente al salir
+- **Trap señales**: Maneja SIGINT (Ctrl+C), SIGTERM y SIGHUP correctamente
+- **Códigos de salida**: Retorna códigos específicos según el tipo de error
 
 
 ## Equipo

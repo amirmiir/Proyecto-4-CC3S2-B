@@ -39,6 +39,46 @@ $ ./src/gestor_procesos.sh detener
 
 Se optó por usar archivos PID en `/tmp` para el control de procesos por ser una ubicación estándar temporal. Las funciones retornan códigos de salida específicos para facilitar el debugging. Se utilizó `readonly` para las variables globales garantizando inmutabilidad. El script está preparado para expansión en Sprint 2 donde se implementará el servicio web real.
 
+## Día 2: Variables y Manejo de Errores
+
+### Tareas Completadas - Melissa Iman Noriega
+
+**Configurar variables de entorno**
+
+Se creó el archivo `.env.example` con todas las variables de entorno requeridas por el sistema. El archivo sirve como plantilla para configuración local e incluye PORT, MESSAGE, RELEASE y variables adicionales para monitoreo de redes. Se actualizó `gestor_procesos.sh` para cargar variables desde `.env` con prioridad correcta: línea de comandos > .env > valores por defecto. Se creó `.gitignore` para excluir archivos `.env` del control de versiones.
+
+Verificación de la implementación:
+```bash
+$ cp .env.example .env
+$ ./src/gestor_procesos.sh estado
+Estado: INACTIVO
+Puerto configurado: 8080
+
+$ PORT=3000 ./src/gestor_procesos.sh estado
+Puerto configurado: 3000  # Línea de comandos tiene prioridad
+```
+
+**Implementar manejo de errores con trap**
+
+Se implementó un sistema completo de manejo de errores usando trap. Se agregó la función `log_mensaje()` para logging centralizado con timestamps y niveles. La función `limpiar_recursos()` se ejecuta con trap EXIT para limpieza automática. Se configuraron traps para señales INT, TERM y HUP. La función `manejar_error()` captura errores con trap ERR mostrando línea y comando que falló.
+
+Pruebas del manejo de errores:
+```bash
+$ ./src/gestor_procesos.sh iniciar
+[2025-09-16 14:40:35] [INFO] Proceso iniciado con PID 31031 en puerto 8080
+[2025-09-16 14:40:35] [INFO] Logs en: /tmp/gestor-logs/gestor-web-20250916.log
+
+$ ./src/gestor_procesos.sh iniciar  # Error: proceso ya existe
+[2025-09-16 14:40:40] [ERROR] El proceso ya está en ejecución
+[2025-09-16 14:40:40] [WARN] Limpiando recursos tras error (código: 3)
+$ echo $?
+3  # Código de salida correcto
+```
+
+### Decisiones Técnicas 
+
+Para la configuración se implementó un sistema de prioridades siguiendo 12-Factor App donde las variables de línea de comandos sobrescriben las del archivo `.env`. El logging centralizado usa `tee` para mostrar en pantalla y guardar en archivo simultáneamente. Los traps se configuraron con `set -E` para propagar a funciones. Se evitó que returns normales disparen el trap ERR mediante validación del comando.
+
 ### Tareas Completadas - Diego Orrego Torrejon
 
 **Implementar Makefile con targets obligatorios**
@@ -73,13 +113,14 @@ $ echo $?
 
 Para el Makefile se utilizó el prefijo `@` en los comandos para mantener la salida limpia y profesional. Se incluyó `.PHONY` para evitar conflictos con archivos del mismo nombre. Los targets `build`, `test`, `run` y `clean` están preparados como stubs para implementación en los siguientes sprints. La verificación de herramientas usa `command -v` que es POSIX-compliant y más confiable que `which`.
 
-### Commits Realizados
+### Commits Realizados Sprint 1 
 
 ```bash
 1412362 Agregar Makefile con tareas para verificar herramientas, construir, probar, ejecutar y limpiar el proyecto
 e1dceb7 Crear script base para gestión de procesos
 79f1bc1 Implementar funciones básicas de gestión de procesos
 ```
+
 
 ### Tareas Completadas - Amir Canto
 
