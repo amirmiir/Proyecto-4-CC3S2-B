@@ -18,12 +18,10 @@ _CMD_RELEASE="${RELEASE:-}"
 
 # Cargar variables de entorno desde archivo .env si existe
 if [[ -f "$PROJECT_ROOT/.env" ]]; then
-    echo "[INFO] Cargando variables desde .env"
+    # Cargar las variables 
     set -a
-    source "$PROJECT_ROOT/.env"
+    source "$PROJECT_ROOT/.env" 2>/dev/null || true
     set +a
-elif [[ -f "$PROJECT_ROOT/.env.example" ]]; then
-    echo "[WARN] No se encontró .env, usando valores por defecto de .env.example"
 fi
 
 # Variables de entorno con prioridad: línea de comandos > .env > defecto
@@ -51,44 +49,160 @@ readonly EXIT_ERROR_TIMEOUT=7
 readonly EXIT_ERROR_DEPENDENCIA=8
 readonly EXIT_ERROR_VALIDACION=9
 
+# MANEJO DE ERRORES Y SEÑALES
+
+# Función para logging
+log_mensaje() {
+    local nivel="$1"
+    shift
+    local mensaje="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    # Crear directorio de logs si no existe
+    [[ ! -d "$LOG_DIR" ]] && mkdir -p "$LOG_DIR" 2>/dev/null
+
+    # Mostrar en pantalla y guardar en archivo si es posible
+    if [[ -w "$LOG_DIR" ]]; then
+        echo "[$timestamp] [$nivel] $mensaje" | tee -a "${LOG_FILE:-/tmp/gestor.log}"
+    else
+        echo "[$timestamp] [$nivel] $mensaje"
+    fi
+}
+
+# Función de limpieza al salir
+limpiar_recursos() {
+    local codigo_salida=$?
+
+    # Solo limpiar si no fue una salida limpia
+    if [[ $codigo_salida -ne 0 ]]; then
+        log_mensaje "WARN" "Limpiando recursos tras error (código: $codigo_salida)"
+
+        # Limpiar PID si existe y es nuestro
+        if [[ -f "$PID_FILE" ]]; then
+            local pid_actual=$(cat "$PID_FILE" 2>/dev/null)
+            if [[ "$pid_actual" == "$$" ]]; then
+                rm -f "$PID_FILE"
+                log_mensaje "INFO" "Archivo PID limpiado"
+            fi
+        fi
+    fi
+
+    exit $codigo_salida
+}
+
+# Función para manejar errores
+manejar_error() {
+    local linea="$1"
+    local comando="$2"
+    local codigo="$3"
+
+    # Ignorar códigos de salida esperados (validación)
+    if [[ $codigo -eq 9 ]] && [[ "$comando" == *"return"* ]]; then
+        exit $codigo
+    fi
+
+    log_mensaje "ERROR" "Error en línea $linea: comando '$comando' falló con código $codigo"
+
+    # Determinar tipo de error
+    case $codigo in
+        1) log_mensaje "ERROR" "Error general del sistema" ;;
+        2) log_mensaje "ERROR" "Error de permisos - verificar permisos de archivos" ;;
+        3) log_mensaje "ERROR" "Error de proceso - el proceso ya existe o no pudo iniciarse" ;;
+        4) log_mensaje "ERROR" "Error de red - verificar conectividad y puertos" ;;
+        5) log_mensaje "ERROR" "Error de configuración - verificar archivo .env" ;;
+        *) log_mensaje "ERROR" "Error desconocido" ;;
+    esac
+
+    exit $codigo
+}
+
+# Función para manejar señales
+manejar_signal() {
+    local signal="$1"
+
+    case "$signal" in
+        INT)
+            log_mensaje "WARN" "Recibida señal SIGINT (Ctrl+C) - interrumpiendo"
+            limpiar_recursos
+            exit $EXIT_ERROR_SIGNAL
+            ;;
+        TERM)
+            log_mensaje "INFO" "Recibida señal SIGTERM - terminando gracefully"
+            detener_proceso
+            exit $EXIT_SUCCESS
+            ;;
+        HUP)
+            log_mensaje "INFO" "Recibida señal SIGHUP - recargando configuración"
+            # Recargar configuración en futuras versiones
+            ;;
+        *)
+            log_mensaje "WARN" "Señal no manejada: $signal"
+            ;;
+    esac
+}
+
+# Configurar traps (desactivar ERR trap para returns controlados)
+set -E
+trap 'manejar_error $LINENO "$BASH_COMMAND" $?' ERR
+trap 'limpiar_recursos' EXIT
+trap 'manejar_signal INT' INT
+trap 'manejar_signal TERM' TERM
+trap 'manejar_signal HUP' HUP
+
 # FUNCIONES DE GESTIÓN DE PROCESOS
 
 # Función para iniciar el proceso
 iniciar_proceso() {
-    echo "[INFO] Iniciando proceso en puerto $PORT..."
+    log_mensaje "INFO" "Iniciando proceso en puerto $PORT..."
 
     # Verificar si el archivo PID existe
     if [[ -f "$PID_FILE" ]]; then
-        echo "[ERROR] El proceso ya está en ejecución"
+        log_mensaje "ERROR" "El proceso ya está en ejecución"
         return $EXIT_ERROR_PROCESO
     fi
 
     # Crear directorio de logs si no existe
-    [[ ! -d "$LOG_DIR" ]] && mkdir -p "$LOG_DIR"
+    if [[ ! -d "$LOG_DIR" ]]; then
+        mkdir -p "$LOG_DIR" || {
+            log_mensaje "ERROR" "No se pudo crear directorio de logs: $LOG_DIR"
+            return $EXIT_ERROR_PERMISOS
+        }
+    fi
 
     # Simular inicio de proceso (se implementará completamente en Sprint 2)
-    echo "$$" > "$PID_FILE"
-    echo "[INFO] Proceso iniciado con PID $$ en puerto $PORT"
-    echo "[INFO] Logs en: $LOG_FILE"
+    echo "$$" > "$PID_FILE" || {
+        log_mensaje "ERROR" "No se pudo crear archivo PID"
+        return $EXIT_ERROR_PERMISOS
+    }
+
+    log_mensaje "INFO" "Proceso iniciado con PID $$ en puerto $PORT"
+    log_mensaje "INFO" "Logs en: $LOG_FILE"
 
     return $EXIT_SUCCESS
 }
 
 # Función para detener el proceso
 detener_proceso() {
-    echo "[INFO] Deteniendo proceso..."
+    log_mensaje "INFO" "Deteniendo proceso..."
 
     # Verificar si el archivo PID existe
     if [[ ! -f "$PID_FILE" ]]; then
-        echo "[WARN] No hay proceso activo para detener"
+        log_mensaje "WARN" "No hay proceso activo para detener"
         return $EXIT_SUCCESS
     fi
 
     # Leer PID y eliminar archivo
-    local pid=$(cat "$PID_FILE")
-    rm -f "$PID_FILE"
+    local pid=$(cat "$PID_FILE" 2>/dev/null) || {
+        log_mensaje "ERROR" "No se pudo leer archivo PID"
+        return $EXIT_ERROR_PERMISOS
+    }
 
-    echo "[INFO] Proceso con PID $pid detenido"
+    rm -f "$PID_FILE" || {
+        log_mensaje "ERROR" "No se pudo eliminar archivo PID"
+        return $EXIT_ERROR_PERMISOS
+    }
+
+    log_mensaje "INFO" "Proceso con PID $pid detenido"
 
     return $EXIT_SUCCESS
 }
@@ -115,30 +229,40 @@ verificar_estado() {
 # Función principal
 main() {
     local comando="${1:-ayuda}"
+    local resultado=0
 
     case "$comando" in
         iniciar)
             iniciar_proceso
+            resultado=$?
             ;;
         detener)
             detener_proceso
+            resultado=$?
             ;;
         estado)
             verificar_estado
+            resultado=$?
             ;;
         *)
             echo "Uso: $SCRIPT_NAME {iniciar|detener|estado}"
             echo "  iniciar - Inicia el proceso gestor"
             echo "  detener - Detiene el proceso gestor"
             echo "  estado  - Muestra el estado actual"
-            return $EXIT_ERROR_VALIDACION
+            resultado=$EXIT_ERROR_VALIDACION
             ;;
     esac
+
+    return $resultado
 }
 
 # EJECUCIÓN DEL SCRIPT
 
 # Verificar que el script se ejecute directamente
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    set +e  # Desactivar temporalmente errexit para manejar códigos de salida
     main "$@"
+    codigo=$?
+    set -e
+    exit $codigo
 fi
