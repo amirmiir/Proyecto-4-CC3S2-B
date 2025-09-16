@@ -1,7 +1,6 @@
 #!/bin/bash
 # Descripción: Gestor de procesos seguros con enfoque en redes
 
-
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -10,16 +9,35 @@ IFS=$'\n\t'
 # Directorio del script
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Guardar variables pasadas por línea de comandos
+_CMD_PORT="${PORT:-}"
+_CMD_MESSAGE="${MESSAGE:-}"
+_CMD_RELEASE="${RELEASE:-}"
+
+# Cargar variables de entorno desde archivo .env si existe
+if [[ -f "$PROJECT_ROOT/.env" ]]; then
+    echo "[INFO] Cargando variables desde .env"
+    set -a
+    source "$PROJECT_ROOT/.env"
+    set +a
+elif [[ -f "$PROJECT_ROOT/.env.example" ]]; then
+    echo "[WARN] No se encontró .env, usando valores por defecto de .env.example"
+fi
+
+# Variables de entorno con prioridad: línea de comandos > .env > defecto
+readonly PORT="${_CMD_PORT:-${PORT:-8080}}"
+readonly MESSAGE="${_CMD_MESSAGE:-${MESSAGE:-Servidor activo}}"
+readonly RELEASE="${_CMD_RELEASE:-${RELEASE:-v1.0.0}}"
+
+# Directorios configurables
+readonly LOG_DIR="${LOG_DIR:-/tmp/gestor-logs}"
+readonly PID_DIR="${PID_DIR:-/tmp}"
 
 # Archivos de control
-readonly PID_FILE="/tmp/gestor-web.pid"
-readonly LOG_DIR="/tmp/gestor-logs"
+readonly PID_FILE="${PID_DIR}/gestor-web.pid"
 readonly LOG_FILE="${LOG_DIR}/gestor-web-$(date +%Y%m%d).log"
-
-# Variables de entorno con valores por defecto 
-readonly PORT="${PORT:-8080}"
-readonly MESSAGE="${MESSAGE:-Servidor activo}"
-readonly RELEASE="${RELEASE:-v1.0.0}"
 
 # Códigos de salida específicos
 readonly EXIT_SUCCESS=0

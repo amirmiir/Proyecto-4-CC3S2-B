@@ -1,0 +1,20 @@
+# Variables de entorno locales
+.env
+
+# Archivos temporales
+*.log
+*.pid
+*.tmp
+
+# Directorios de salida
+out/
+dist/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de respaldo
+*.bak
+*~
+*.swp
