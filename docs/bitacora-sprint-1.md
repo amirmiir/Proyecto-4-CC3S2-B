@@ -75,9 +75,44 @@ $ echo $?
 3  # Código de salida correcto
 ```
 
-### Decisiones Técnicas 
+### Decisiones Técnicas
 
 Para la configuración se implementó un sistema de prioridades siguiendo 12-Factor App donde las variables de línea de comandos sobrescriben las del archivo `.env`. El logging centralizado usa `tee` para mostrar en pantalla y guardar en archivo simultáneamente. Los traps se configuraron con `set -E` para propagar a funciones. Se evitó que returns normales disparen el trap ERR mediante validación del comando.
+
+## Día 3: Integración y Mejoras
+
+### Tareas Completadas - Melissa Iman Noriega
+
+**Mejorar manejo de señales en gestor de procesos**
+
+Se agregaron variables globales `SIGNAL_RECIBIDA` y `EN_APAGADO` para controlar el estado y prevenir procesamiento múltiple de señales. Se implementó soporte para señales adicionales: SIGUSR1 muestra estado detallado del sistema incluyendo PID y últimas líneas del log, SIGUSR2 realiza rotación de logs con respaldo timestampeado, SIGQUIT permite terminación forzada inmediata y SIGHUP recarga configuración desde .env sin reiniciar el proceso.
+
+Mejoras en control de procesos implementadas:
+```bash
+# Señales disponibles
+kill -HUP <pid>    # Recargar configuración
+kill -USR1 <pid>   # Mostrar estado detallado
+kill -USR2 <pid>   # Rotar logs
+kill -TERM <pid>   # Apagado controlado
+kill -QUIT <pid>   # Terminación forzada
+
+# Verificación mejorada
+$ PORT=9999 ./src/gestor_procesos.sh iniciar
+[2025-09-17 15:47:59] [INFO] Proceso iniciado con PID 8133 en puerto 9999
+[2025-09-17 15:47:59] [INFO] Señales disponibles: INT, TERM, HUP, USR1, USR2, QUIT
+
+# Terminación progresiva
+$ ./src/gestor_procesos.sh detener
+[2025-09-17 15:47:42] [INFO] Enviando señal SIGTERM al proceso 8133...
+[2025-09-17 15:47:43] [INFO] Esperando que el proceso termine... (1/10)
+[2025-09-17 15:47:44] [INFO] Proceso terminado exitosamente con SIGTERM
+```
+
+Se mejoró la función `iniciar_proceso()` para verificar disponibilidad del puerto, validar PIDs existentes y limpiar PIDs obsoletos automáticamente. La función `detener_proceso()` ahora implementa terminación progresiva: primero SIGTERM con espera de 10 segundos, luego SIGKILL si es necesario. El subproceso hereda correctamente los manejadores de señales del proceso padre.
+
+### Decisiones Técnicas Día 3
+
+Se optó por usar variables globales sin `declare -g` para compatibilidad con versiones antiguas de Bash. El control de estado `EN_APAGADO` previene operaciones durante el apagado. La verificación de puertos usa `lsof` cuando está disponible con fallback a otros métodos. El timeout de 10 segundos para SIGTERM balancea tiempo de respuesta con cierre limpio. Los logs incluyen información de señales recibidas para auditoría completa.
 
 ### Tareas Completadas - Diego Orrego Torrejon
 
@@ -113,12 +148,23 @@ $ echo $?
 
 Para el Makefile se utilizó el prefijo `@` en los comandos para mantener la salida limpia y profesional. Se incluyó `.PHONY` para evitar conflictos con archivos del mismo nombre. Los targets `build`, `test`, `run` y `clean` están preparados como stubs para implementación en los siguientes sprints. La verificación de herramientas usa `command -v` que es POSIX-compliant y más confiable que `which`.
 
-### Commits Realizados Sprint 1 
+### Commits Realizados Sprint 1 - Días 1-2
 
 ```bash
 1412362 Agregar Makefile con tareas para verificar herramientas, construir, probar, ejecutar y limpiar el proyecto
 e1dceb7 Crear script base para gestión de procesos
 79f1bc1 Implementar funciones básicas de gestión de procesos
+# Pendientes de commit Día 2:
+# Configurar variables de entorno para gestor
+# Agregar manejo de errores con trap
+```
+
+### Commits Realizados Sprint 1 - Día 3
+
+```bash
+# Pendiente de commit:
+# Mejorar manejo de señales en gestor de procesos
+# Actualizar documentación con cambios del día 3
 ```
 
 

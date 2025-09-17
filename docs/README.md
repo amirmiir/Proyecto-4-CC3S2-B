@@ -95,13 +95,40 @@ Los scripts generan logs en:
 
 Todos los mensajes incluyen timestamp y nivel (INFO, WARN, ERROR). El sistema de logging centralizado facilita el debugging y auditoría.
 
-## Manejo de Errores
+## Manejo de Errores y Señales
 
 El gestor de procesos implementa manejo robusto de errores mediante:
 - **Trap ERR**: Captura errores y muestra línea y comando que falló
 - **Trap EXIT**: Limpia recursos automáticamente al salir
-- **Trap señales**: Maneja SIGINT (Ctrl+C), SIGTERM y SIGHUP correctamente
 - **Códigos de salida**: Retorna códigos específicos según el tipo de error
+
+### Señales Soportadas
+
+El sistema maneja las siguientes señales Unix:
+
+| Señal | Comando | Acción |
+|-------|---------|---------|
+| SIGINT | `kill -INT <pid>` o Ctrl+C | Interrupción con limpieza de recursos |
+| SIGTERM | `kill -TERM <pid>` | Apagado controlado con timeout |
+| SIGHUP | `kill -HUP <pid>` | Recarga configuración desde .env |
+| SIGUSR1 | `kill -USR1 <pid>` | Muestra estado detallado del sistema |
+| SIGUSR2 | `kill -USR2 <pid>` | Rota archivos de log con backup |
+| SIGQUIT | `kill -QUIT <pid>` | Terminación forzada inmediata |
+
+Ejemplo de uso:
+```bash
+# Iniciar proceso
+$ ./src/gestor_procesos.sh iniciar
+
+# Mostrar estado detallado
+$ kill -USR1 $(cat /tmp/gestor-web.pid)
+
+# Recargar configuración
+$ kill -HUP $(cat /tmp/gestor-web.pid)
+
+# Detener con apagado controlado
+$ ./src/gestor_procesos.sh detener
+```
 
 
 ## Equipo
