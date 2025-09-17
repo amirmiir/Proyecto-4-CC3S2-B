@@ -96,6 +96,48 @@ verificar_http() {
     fi
 }
 
+# Función para verificar resolución DNS
+verificar_dns() {
+    local targets_array
+    local dominio
+    local resultado_dig
+    local ip_address
+    
+    log_info "Verificando resolución DNS con servidor: $DNS_SERVER"
+    
+    # Convertir TARGETS separados por comas en array
+    IFS=',' read -ra targets_array <<< "$TARGETS"
+    
+    for dominio in "${targets_array[@]}"; do
+        # Limpiar espacios en blanco
+        dominio=$(echo "$dominio" | tr -d ' ')
+        
+        log_info "Resolviendo dominio: $dominio"
+        
+        # Realizar consulta DNS con dig
+        if resultado_dig=$(dig +short +time=5 "@$DNS_SERVER" "$dominio" A 2>/dev/null); then
+            
+            # Verificar si obtuvo respuesta
+            if [[ -n "$resultado_dig" ]]; then
+                # Extraer primera IP (en caso de múltiples registros)
+                ip_address=$(echo "$resultado_dig" | head -n1)
+                
+                log_info "DNS resuelto: $dominio -> $ip_address"
+                log_info "Verificación DNS exitosa para $dominio"
+            else
+                log_error "No se pudo resolver $dominio: sin respuesta del servidor DNS"
+                return $EXIT_ERROR_RED
+            fi
+        else
+            log_error "Error de conectividad DNS para $dominio con servidor $DNS_SERVER"
+            return $EXIT_ERROR_RED
+        fi
+    done
+    
+    log_info "Verificación DNS completada exitosamente para todos los dominios"
+    return $EXIT_SUCCESS
+}
+
 # Función para mostrar ayuda
 mostrar_ayuda() {
     cat << EOF
@@ -175,7 +217,7 @@ main() {
             ;;
         "dns")
             log_info "Ejecutando verificación DNS..."
-            # Función a implementar en Sprint 2
+            verificar_dns
             ;;
         "tls")
             log_info "Ejecutando verificación TLS..."
