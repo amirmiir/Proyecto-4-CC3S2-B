@@ -102,6 +102,7 @@ verificar_dns() {
     local dominio
     local resultado_dig
     local ip_address
+    local query_time
     
     log_info "Verificando resolución DNS con servidor: $DNS_SERVER"
     
@@ -122,8 +123,20 @@ verificar_dns() {
                 # Extraer primera IP (en caso de múltiples registros)
                 ip_address=$(echo "$resultado_dig" | head -n1)
                 
+                # Obtener tiempo de consulta usando awk para parsing
+                query_time=$(dig +noall +stats "@$DNS_SERVER" "$dominio" A 2>/dev/null | \
+                           awk '/Query time:/ {print $4}')
+                
                 log_info "DNS resuelto: $dominio -> $ip_address"
-                log_info "Verificación DNS exitosa para $dominio"
+                log_info "Tiempo de consulta: ${query_time:-N/A} ms"
+                
+                # Verificar formato de IP válida usando cut para validación
+                if [[ "$ip_address" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+                    log_info "Verificación DNS exitosa para $dominio"
+                else
+                    log_error "Respuesta DNS inválida para $dominio: $ip_address"
+                    return $EXIT_ERROR_RED
+                fi
             else
                 log_error "No se pudo resolver $dominio: sin respuesta del servidor DNS"
                 return $EXIT_ERROR_RED
