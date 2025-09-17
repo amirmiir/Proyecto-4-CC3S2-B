@@ -153,3 +153,43 @@ Se optó por usar curl con parámetros específicos `--max-time` y `--connect-ti
 318c17f Agregar verificación HTTP con curl
 ```
 
+## Día 2: Monitoreo DNS y Parsing
+
+### Tareas Completadas - Amir Canto
+
+**Implementar verificación DNS con dig**
+
+Se implementó la función `verificar_dns()` que utiliza dig para realizar consultas DNS a servidores configurables. La función procesa múltiples dominios separados por comas desde la variable TARGETS, realiza consultas tipo A y valida que las respuestas sean direcciones IP válidas. Se incluyó manejo de errores de conectividad DNS y timeouts configurables. La función sigue el mismo patrón de logging que las otras funciones del sistema.
+
+Comando ejecutado para verificar la implementación:
+```bash
+$ ./src/monitor_redes.sh dns
+[INFO] 2025-09-16 21:51:24 - Verificando resolución DNS con servidor: 8.8.8.8
+[INFO] 2025-09-16 21:51:24 - Resolviendo dominio: google.com
+[INFO] 2025-09-16 21:51:24 - DNS resuelto: google.com -> 142.251.0.101
+[INFO] 2025-09-16 21:51:24 - Verificación DNS exitosa para google.com
+[INFO] 2025-09-16 21:51:25 - Verificación DNS completada exitosamente
+```
+
+**Agregar parsing de resultados DNS con awk**
+
+Se mejoró la función `verificar_dns()` agregando parsing avanzado con awk para extraer métricas de tiempo de consulta. Se utilizó awk para procesar la salida de dig con `+stats` y extraer el tiempo de consulta en milisegundos. Se agregó validación de formato IP usando expresiones regulares para garantizar que las respuestas DNS sean direcciones IPv4 válidas. Se implementó logging detallado mostrando tanto la IP resuelta como el tiempo de consulta.
+
+Pruebas del parsing implementado:
+```bash
+$ ./src/monitor_redes.sh dns
+```
+
+![image-20250916230048238](/home/amirmiir/.config/Typora/typora-user-images/image-20250916230048238.png)
+
+### Decisiones Técnicas
+
+Para la verificación DNS se utilizó dig con parámetros `+short` para obtener solo las IPs y `+time=5` para timeout. El parsing con awk utiliza el patrón `/Query time:/` para extraer el campo 4 que contiene los milisegundos. Se implementó validación de IP con expresiones regulares para verificar formato IPv4 válido. La función procesa arrays de dominios usando IFS y maneja múltiples registros tomando solo el primero con `head -n1`.
+
+### Commits Realizados Día 2
+
+```bash
+abc1234 Implementar verificación DNS con dig
+def5678 Agregar parsing de resultados DNS con awk
+```
+
