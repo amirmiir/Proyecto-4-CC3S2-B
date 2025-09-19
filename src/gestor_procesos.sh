@@ -894,8 +894,20 @@ main() {
                 resultado=$EXIT_ERROR_CONFIGURACION
             fi
             ;;
+        # Comando de sincronización y backup con rsync
+        backup|rsync|sincronizar)
+            shift
+            local script_rsync="$SCRIPT_DIR/sincronizar_rsync.sh"
+            if [[ -x "$script_rsync" ]]; then
+                "$script_rsync" "${1:-ayuda}" "${@:2}"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de sincronización no encontrado: $script_rsync"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|sockets|toolkit|start|stop|restart|reload|systemctl}"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|sockets|toolkit|backup|start|stop|restart|reload|systemctl}"
             echo ""
             echo "Comandos básicos (sin systemd):"
             echo "  iniciar  - Inicia el proceso gestor"
@@ -905,6 +917,7 @@ main() {
             echo "  metricas - Análisis avanzado con awk"
             echo "  sockets  - Verificar puertos y conexiones"
             echo "  toolkit  - Procesamiento con cut y tee"
+            echo "  backup   - Sincronización y backup con rsync"
             echo ""
             echo "Comandos systemd:"
             echo "  start    - Inicia servicio via systemctl"

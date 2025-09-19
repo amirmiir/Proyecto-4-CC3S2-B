@@ -499,3 +499,64 @@ Resumen: 2 puertos abiertos, 99 cerrados
 - Debugging de protocolos de red
 - Tests de conectividad UDP
 
+### Sincronización con rsync - Backup de logs y configuración
+
+**Decisión técnica**: Implementar sistema completo de backup y sincronización usando rsync con soporte para backups incrementales, remotos y compresión automática.
+
+**Implementación**:
+1. Creación de `src/sincronizar_rsync.sh` con funciones especializadas:
+   - `backup_logs()`: Backup de logs con compresión tar.gz
+   - `backup_configuracion()`: Respaldo de configuraciones y .env
+   - `sincronizacion_incremental()`: Backups incrementales con hardlinks
+   - `sincronizacion_remota()`: Sincronización sobre SSH
+   - `restaurar_backup()`: Restauración interactiva
+   - `mostrar_estadisticas()`: Estadísticas de uso
+
+2. Características implementadas:
+   - Compresión automática de backups antiguos
+   - Sincronización incremental con --link-dest para eficiencia
+   - Metadata con información del sistema y fecha
+   - Limpieza automática (mantiene últimos 7 backups)
+   - Sincronización remota con verificación SSH
+   - Restauración interactiva con selección de backup
+
+3. Integración con gestor_procesos.sh:
+   - Comando `backup` agregado al gestor principal
+   - Aliases: `rsync`, `sincronizar`
+   - Soporte para todas las acciones de rsync
+
+**Evidencia**:
+```bash
+$ ./src/gestor_procesos.sh backup logs
+╔══════════════════════════════════════════╗
+║    SINCRONIZACIÓN CON RSYNC             ║
+╚══════════════════════════════════════════╝
+✓ openrsync: protocol version 29
+
+=== Backup de Logs ===
+Origen:  /tmp/gestor-logs
+Destino: /tmp/backups/logs/backup-20250919-142650
+
+Transfer starting: 3 files
+Number of files transferred: 2
+Total file size: 5624 B
+
+Comprimiendo backup...
+✓ Backup comprimido: backup-20250919-142650.tar.gz
+
+$ ./src/sincronizar_rsync.sh stats
+Uso de espacio:
+  Total: 8.0K
+Por categoría:
+  logs: 4.0K (1 items)
+  config: 4.0K (1 items)
+```
+
+**Casos de uso de rsync**:
+- Backup automático de logs con compresión
+- Respaldo de configuraciones críticas
+- Sincronización incremental para ahorrar espacio
+- Replicación remota para disaster recovery
+- Restauración rápida desde backups
+- Monitoreo de uso de espacio en backups
+
