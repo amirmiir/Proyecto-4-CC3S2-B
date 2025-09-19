@@ -882,8 +882,20 @@ main() {
                 resultado=$EXIT_ERROR_CONFIGURACION
             fi
             ;;
+        # Comando de procesamiento con toolkit
+        toolkit|procesar)
+            shift
+            local script_toolkit="$SCRIPT_DIR/procesador_toolkit.sh"
+            if [[ -x "$script_toolkit" ]]; then
+                "$script_toolkit" "${1:-todo}"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de toolkit no encontrado: $script_toolkit"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|sockets|start|stop|restart|reload|systemctl}"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|sockets|toolkit|start|stop|restart|reload|systemctl}"
             echo ""
             echo "Comandos básicos (sin systemd):"
             echo "  iniciar  - Inicia el proceso gestor"
@@ -892,6 +904,7 @@ main() {
             echo "  logs     - Analiza logs del sistema"
             echo "  metricas - Análisis avanzado con awk"
             echo "  sockets  - Verificar puertos y conexiones"
+            echo "  toolkit  - Procesamiento con cut y tee"
             echo ""
             echo "Comandos systemd:"
             echo "  start    - Inicia servicio via systemctl"

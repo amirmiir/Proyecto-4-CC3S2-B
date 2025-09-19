@@ -387,3 +387,62 @@ Puertos TCP escuchando:
 - Alertas de alto número de conexiones TIME_WAIT
 - Recomendaciones de seguridad automáticas
 
+### Procesamiento con Unix Toolkit
+
+**Decisión técnica**: Integrar cut y tee para procesamiento avanzado de salidas y generación de reportes.
+
+**Implementación**:
+1. Creación de `src/procesador_toolkit.sh` con funciones especializadas:
+   - `procesar_logs_sistema()`: Extrae campos de logs con cut
+   - `procesar_salida_red()`: Procesa información de red
+   - `procesar_info_procesos()`: Analiza procesos del sistema
+   - `analisis_combinado()`: Pipeline complejo con múltiples herramientas
+   - `generar_resumen()`: Crea reporte consolidado
+
+2. Uso de cut para extracción de campos:
+   - Timestamps de logs (campos 1-2)
+   - Niveles de log con delimitadores
+   - Primeros N caracteres de mensajes
+   - Columnas específicas de salidas tabulares
+   - IPs y puertos de conexiones de red
+
+3. Uso de tee para procesamiento dual:
+   - Mostrar en pantalla y guardar en archivo simultáneamente
+   - Crear múltiples copias de datos procesados
+   - Generar reportes persistentes
+   - Mantener archivos temporales para análisis posterior
+
+4. Pipelines complejos implementados:
+   - `grep | cut | sort | uniq | tee` para análisis de patrones
+   - `ps | sort | head | cut | tee` para top procesos
+   - `df | cut | tee` para uso de disco
+   - `netstat | grep | cut | tee` para conexiones activas
+
+5. Integración con gestor principal:
+   - Comando `toolkit` o `procesar` agregado
+   - Procesamiento modular por categorías
+
+**Evidencia**:
+```bash
+$ ./src/gestor_procesos.sh toolkit logs
+Procesamiento de Logs con Unix Toolkit
+Extrayendo timestamps (campo 1-2):
+2025-09-19 13:45:14
+2025-09-19 13:45:14
+
+Niveles de log encontrados:
+  4 ERROR
+  33 INFO
+  2 WARN
+
+Puertos detectados: 1923, 2781, 8282, 8383
+Reporte guardado en: /tmp/toolkit-logs/reporte-20250919.txt
+```
+
+**Características del procesamiento**:
+- Extracción precisa de campos con cut
+- Salida dual pantalla/archivo con tee
+- Reportes estructurados y timestamped
+- Análisis de múltiples fuentes de datos
+- Compatibilidad con diferentes sistemas Unix
+
