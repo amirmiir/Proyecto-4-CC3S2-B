@@ -534,6 +534,118 @@ controlar_servicio_systemd() {
     esac
 }
 
+# Función para analizar logs con journalctl
+analizar_logs() {
+    local servicio="gestor-web.service"
+    local desde="${1:-1 hour ago}"
+
+    log_mensaje "INFO" "=== Análisis de logs del sistema ==="
+
+    # Verificar si journalctl está disponible
+    if ! command -v journalctl >/dev/null 2>&1; then
+        log_mensaje "WARN" "journalctl no disponible, analizando logs tradicionales"
+        analizar_logs_tradicionales
+        return $?
+    fi
+
+    # Si systemd está disponible, analizar logs del servicio
+    if systemctl list-unit-files 2>/dev/null | grep -q "$servicio"; then
+        echo ""
+        echo "=== Logs del servicio systemd ==="
+
+        # Contar mensajes por nivel usando awk
+        echo ""
+        echo "Distribución de mensajes (última hora):"
+        journalctl -u "$servicio" --since "$desde" --no-pager 2>/dev/null | \
+            awk '/INFO/ {info++}
+                 /WARN/ {warn++}
+                 /ERROR/ {error++}
+                 END {
+                     printf "  ✓ INFO:  %d mensajes\n", info+0
+                     printf "  ⚠ WARN:  %d mensajes\n", warn+0
+                     printf "  ✗ ERROR: %d mensajes\n", error+0
+                 }'
+
+        # Mostrar últimos errores
+        echo ""
+        echo "Últimos errores del servicio:"
+        journalctl -u "$servicio" --since "$desde" --no-pager 2>/dev/null | \
+            grep "ERROR" | \
+            tail -5 || echo "  No se encontraron errores recientes"
+
+        # Análisis de reinicios
+        echo ""
+        echo "Reinicios del servicio hoy:"
+        local reinicios=$(journalctl -u "$servicio" --since today --no-pager 2>/dev/null | \
+            grep -c "Started\|Stopped" || echo "0")
+        echo "  Cantidad de reinicios: $reinicios"
+
+        # Tiempo de actividad
+        echo ""
+        echo "Estado actual del servicio:"
+        if systemctl is-active "$servicio" >/dev/null 2>&1; then
+            local uptime=$(systemctl show "$servicio" --property=ActiveEnterTimestamp | cut -d= -f2)
+            echo "  ✓ Servicio activo desde: $uptime"
+        else
+            echo "  ✗ Servicio no activo"
+        fi
+    fi
+
+    # Analizar logs tradicionales también
+    echo ""
+    echo "=== Logs del proceso tradicional ==="
+    analizar_logs_tradicionales
+
+    return $EXIT_SUCCESS
+}
+
+# Función auxiliar para analizar logs tradicionales
+analizar_logs_tradicionales() {
+    # Verificar si existe el archivo de log
+    if [[ ! -f "$LOG_FILE" ]]; then
+        log_mensaje "INFO" "No hay archivo de log tradicional"
+        return $EXIT_SUCCESS
+    fi
+
+    echo ""
+    echo "Archivo de log: $LOG_FILE"
+
+    # Tamaño del archivo
+    local tamano=$(du -h "$LOG_FILE" 2>/dev/null | cut -f1)
+    echo "Tamaño: $tamano"
+
+    # Contar líneas totales
+    local total_lineas=$(wc -l < "$LOG_FILE" 2>/dev/null)
+    echo "Total de líneas: $total_lineas"
+
+    # Análisis con awk
+    echo ""
+    echo "Análisis del contenido:"
+
+    # Extraer y analizar tiempos
+    if grep -q "Release:" "$LOG_FILE" 2>/dev/null; then
+        echo ""
+        echo "Versiones detectadas:"
+        awk '/Release:/ {releases[$7]++}
+             END {for (r in releases) printf "  %s: %d veces\n", r, releases[r]}' "$LOG_FILE"
+    fi
+
+    # Extraer puertos utilizados
+    if grep -q "Puerto:" "$LOG_FILE" 2>/dev/null; then
+        echo ""
+        echo "Puertos utilizados:"
+        awk -F'Puerto: ' '/Puerto:/ {ports[$2]++}
+             END {for (p in ports) printf "  Puerto %s: %d veces\n", p, ports[p]}' "$LOG_FILE"
+    fi
+
+    # Mostrar últimas líneas
+    echo ""
+    echo "Últimas 10 entradas del log:"
+    tail -10 "$LOG_FILE" | sed 's/^/  /'
+
+    return $EXIT_SUCCESS
+}
+
 # Función principal
 main() {
     local comando="${1:-ayuda}"
@@ -573,13 +685,20 @@ main() {
             controlar_servicio_systemd "$comando"
             resultado=$?
             ;;
+        # Comando de análisis de logs
+        logs|analizar-logs)
+            shift
+            analizar_logs "${1:-1 hour ago}"
+            resultado=$?
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|start|stop|restart|reload|systemctl}"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|start|stop|restart|reload|systemctl}"
             echo ""
             echo "Comandos básicos (sin systemd):"
             echo "  iniciar  - Inicia el proceso gestor"
             echo "  detener  - Detiene el proceso gestor"
             echo "  estado   - Muestra el estado actual"
+            echo "  logs     - Analiza logs del sistema"
             echo ""
             echo "Comandos systemd:"
             echo "  start    - Inicia servicio via systemctl"

@@ -98,3 +98,55 @@ $ ./src/gestor_procesos.sh start
 
 4. **Seguridad en systemd**: Usuario no privilegiado, directorios temporales aislados, límites de recursos
 
+Implementar análisis de logs con journalctl
+
+**Decisión técnica**: Implementar función robusta de análisis de logs que funcione tanto con journalctl (systemd) como con logs tradicionales.
+
+**Implementación**:
+1. Nueva función `analizar_logs()` en `gestor_procesos.sh` que incluye:
+   - Detección automática de journalctl
+   - Análisis de logs del servicio systemd si está disponible
+   - Fallback a logs tradicionales
+   - Uso extensivo de awk para procesamiento
+
+2. Análisis con journalctl (cuando disponible):
+   - Conteo de mensajes por nivel (INFO, WARN, ERROR) usando awk
+   - Mostrar últimos errores del servicio
+   - Conteo de reinicios del día
+   - Estado y tiempo de actividad del servicio
+
+3. Análisis de logs tradicionales:
+   - Tamaño y total de líneas del archivo
+   - Versiones detectadas con awk
+   - Puertos utilizados con awk
+   - Últimas 10 entradas del log
+
+4. Comando agregado al menú principal: `logs` o `analizar-logs`
+
+**Evidencia**:
+```bash
+$ ./src/gestor_procesos.sh logs
+[INFO] === Análisis de logs del sistema ===
+[WARN] journalctl no disponible, analizando logs tradicionales
+
+Archivo de log: /tmp/gestor-logs/gestor-web-20250919.log
+Tamaño: 4.0K
+Total de líneas: 55
+
+Versiones detectadas:
+  v1.0.0: 2 veces
+
+Puertos utilizados:
+  Puerto 8181: 1 veces
+  Puerto 9090: 1 veces
+```
+
+**Uso de herramientas Unix**:
+- `awk`: Procesamiento de logs, conteo de patrones, extracción de campos
+- `grep`: Filtrado de mensajes por nivel
+- `cut`: Extracción de campos específicos
+- `tail`: Mostrar últimas líneas
+- `sed`: Formateo de salida
+- `wc`: Conteo de líneas
+- `du`: Tamaño de archivos
+
