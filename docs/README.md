@@ -19,10 +19,25 @@ El archivo `.env` no se versiona en Git para mantener la configuración local se
 El sistema incluye dos scripts principales que requieren Bash 4.0 o superior:
 
 ### Gestor de Procesos
+
+#### Comandos básicos (sin systemd)
 ```bash
 ./src/gestor_procesos.sh iniciar  # Inicia el proceso
 ./src/gestor_procesos.sh detener  # Detiene el proceso
 ./src/gestor_procesos.sh estado   # Muestra el estado
+```
+
+#### Comandos systemd
+```bash
+./src/gestor_procesos.sh start     # Inicia via systemctl
+./src/gestor_procesos.sh stop      # Detiene via systemctl
+./src/gestor_procesos.sh restart   # Reinicia servicio
+./src/gestor_procesos.sh reload    # Recarga configuración
+
+# Control avanzado
+./src/gestor_procesos.sh systemctl status   # Estado detallado
+./src/gestor_procesos.sh systemctl enable   # Habilitar inicio automático
+./src/gestor_procesos.sh systemctl disable  # Deshabilitar inicio automático
 ```
 
 ### Monitor de Redes

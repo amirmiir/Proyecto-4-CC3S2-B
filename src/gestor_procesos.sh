@@ -438,12 +438,109 @@ verificar_estado() {
 
 # FUNCIÓN PRINCIPAL Y PUNTO DE ENTRADA
 
+# Función para control via systemctl
+controlar_servicio_systemd() {
+    local accion="$1"
+    local servicio="gestor-web.service"
+
+    # Verificar si systemd está disponible
+    if ! command -v systemctl >/dev/null 2>&1; then
+        log_mensaje "ERROR" "systemctl no está disponible en este sistema"
+        return $EXIT_ERROR_DEPENDENCIA
+    fi
+
+    # Verificar si el servicio está instalado
+    if ! systemctl list-unit-files 2>/dev/null | grep -q "$servicio"; then
+        log_mensaje "WARN" "Servicio $servicio no está instalado"
+        log_mensaje "INFO" "Use 'sudo systemd/gestionar-servicio.sh instalar' para instalar"
+        return $EXIT_ERROR_CONFIGURACION
+    fi
+
+    case "$accion" in
+        start)
+            log_mensaje "INFO" "Iniciando servicio via systemctl..."
+            if sudo systemctl start "$servicio"; then
+                log_mensaje "INFO" "Servicio iniciado correctamente"
+                sudo systemctl status "$servicio" --no-pager | head -10
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al iniciar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        stop)
+            log_mensaje "INFO" "Deteniendo servicio via systemctl..."
+            if sudo systemctl stop "$servicio"; then
+                log_mensaje "INFO" "Servicio detenido correctamente"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al detener servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        restart)
+            log_mensaje "INFO" "Reiniciando servicio via systemctl..."
+            if sudo systemctl restart "$servicio"; then
+                log_mensaje "INFO" "Servicio reiniciado correctamente"
+                sudo systemctl status "$servicio" --no-pager | head -10
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al reiniciar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        reload)
+            log_mensaje "INFO" "Recargando configuración via systemctl..."
+            if sudo systemctl reload "$servicio"; then
+                log_mensaje "INFO" "Configuración recargada correctamente"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al recargar configuración"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        status)
+            log_mensaje "INFO" "Estado del servicio systemd:"
+            sudo systemctl status "$servicio" --no-pager || true
+            echo ""
+            log_mensaje "INFO" "Últimas líneas del journal:"
+            sudo journalctl -u "$servicio" -n 10 --no-pager || true
+            return $EXIT_SUCCESS
+            ;;
+        enable)
+            log_mensaje "INFO" "Habilitando servicio para inicio automático..."
+            if sudo systemctl enable "$servicio"; then
+                log_mensaje "INFO" "Servicio habilitado para inicio automático"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al habilitar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        disable)
+            log_mensaje "INFO" "Deshabilitando inicio automático..."
+            if sudo systemctl disable "$servicio"; then
+                log_mensaje "INFO" "Inicio automático deshabilitado"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al deshabilitar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        *)
+            log_mensaje "ERROR" "Acción desconocida: $accion"
+            return $EXIT_ERROR_VALIDACION
+            ;;
+    esac
+}
+
 # Función principal
 main() {
     local comando="${1:-ayuda}"
     local resultado=0
 
     case "$comando" in
+        # Comandos tradicionales
         iniciar)
             iniciar_proceso
             resultado=$?
@@ -456,11 +553,44 @@ main() {
             verificar_estado
             resultado=$?
             ;;
+        # Comandos de systemctl
+        systemctl)
+            shift
+            local subcomando="${1:-}"
+            case "$subcomando" in
+                start|stop|restart|reload|status|enable|disable)
+                    controlar_servicio_systemd "$subcomando"
+                    resultado=$?
+                    ;;
+                *)
+                    echo "Uso: $SCRIPT_NAME systemctl {start|stop|restart|reload|status|enable|disable}"
+                    resultado=$EXIT_ERROR_VALIDACION
+                    ;;
+            esac
+            ;;
+        # Alias directos para systemctl
+        start|stop|restart|reload)
+            controlar_servicio_systemd "$comando"
+            resultado=$?
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado}"
-            echo "  iniciar - Inicia el proceso gestor"
-            echo "  detener - Detiene el proceso gestor"
-            echo "  estado  - Muestra el estado actual"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|start|stop|restart|reload|systemctl}"
+            echo ""
+            echo "Comandos básicos (sin systemd):"
+            echo "  iniciar  - Inicia el proceso gestor"
+            echo "  detener  - Detiene el proceso gestor"
+            echo "  estado   - Muestra el estado actual"
+            echo ""
+            echo "Comandos systemd:"
+            echo "  start    - Inicia servicio via systemctl"
+            echo "  stop     - Detiene servicio via systemctl"
+            echo "  restart  - Reinicia servicio via systemctl"
+            echo "  reload   - Recarga configuración via systemctl"
+            echo ""
+            echo "Control avanzado:"
+            echo "  systemctl status  - Ver estado detallado del servicio"
+            echo "  systemctl enable  - Habilitar inicio automático"
+            echo "  systemctl disable - Deshabilitar inicio automático"
             resultado=$EXIT_ERROR_VALIDACION
             ;;
     esac
