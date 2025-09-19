@@ -1,0 +1,90 @@
+[Unit]
+Description=Gestor de Procesos Web Seguros
+Documentation=https://github.com/grupo12/proyecto4
+After=network.target network-online.target
+Wants=network-online.target
+Before=multi-user.target
+
+[Service]
+# Tipo de servicio - forking porque el script gestiona su propio PID
+Type=forking
+
+# Usuario y grupo para ejecutar el servicio (seguridad)
+User=nobody
+Group=nogroup
+
+# Directorio de trabajo
+WorkingDirectory=/opt/gestor-web
+
+# Variables de entorno para el servicio
+Environment="PORT=8080"
+Environment="MESSAGE=Servidor activo en systemd"
+Environment="RELEASE=v1.0.0"
+Environment="LOG_DIR=/var/log/gestor-web"
+Environment="PID_DIR=/var/run"
+
+# Cargar variables adicionales desde archivo
+EnvironmentFile=-/etc/gestor-web/gestor.conf
+
+# Comando para iniciar el servicio
+ExecStart=/opt/gestor-web/src/gestor_procesos.sh iniciar
+
+# Comando para detener el servicio
+ExecStop=/opt/gestor-web/src/gestor_procesos.sh detener
+
+# Comando para recargar configuración (SIGHUP)
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Archivo PID para systemd
+PIDFile=/var/run/gestor-web.pid
+
+# Reinicio automático en caso de fallo
+Restart=on-failure
+RestartSec=10s
+
+# Límite de reintentos
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Timeout para inicio y parada
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+
+# Señal para detener el servicio
+KillSignal=SIGTERM
+KillMode=mixed
+
+# Tiempo de espera antes de SIGKILL
+TimeoutStopSec=30s
+
+# Capacidades y restricciones de seguridad
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/gestor-web /var/run
+
+# Límites de recursos
+LimitNOFILE=1024
+LimitNPROC=512
+LimitCORE=0
+
+# Control de CPU y memoria
+CPUQuota=50%
+MemoryLimit=256M
+MemorySwapMax=0
+
+# Logging con journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gestor-web
+
+# Notificación de estado (si el script lo soporta)
+NotifyAccess=none
+
+[Install]
+# Target de instalación
+WantedBy=multi-user.target
+
+# Alias para el servicio
+Alias=gestor-procesos.service
