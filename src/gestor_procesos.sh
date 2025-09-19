@@ -37,7 +37,7 @@ readonly PID_DIR="${PID_DIR:-/tmp}"
 readonly PID_FILE="${PID_DIR}/gestor-web.pid"
 readonly LOG_FILE="${LOG_DIR}/gestor-web-$(date +%Y%m%d).log"
 
-# Códigos de salida específicos
+# Códigos de salida específicos (0-9)
 readonly EXIT_SUCCESS=0
 readonly EXIT_ERROR_GENERAL=1
 readonly EXIT_ERROR_PERMISOS=2
@@ -49,12 +49,73 @@ readonly EXIT_ERROR_TIMEOUT=7
 readonly EXIT_ERROR_DEPENDENCIA=8
 readonly EXIT_ERROR_VALIDACION=9
 
+# Códigos de salida extendidos (10-20)
+readonly EXIT_ERROR_ARCHIVO=10
+readonly EXIT_ERROR_MEMORIA=11
+readonly EXIT_ERROR_DISCO=12
+readonly EXIT_ERROR_SERVICIO=13
+readonly EXIT_ERROR_AUTENTICACION=14
+readonly EXIT_ERROR_PROTOCOLO=15
+readonly EXIT_ERROR_VERSION=16
+readonly EXIT_ERROR_ESTADO=17
+readonly EXIT_ERROR_RECURSO=18
+readonly EXIT_ERROR_LIMITE=19
+readonly EXIT_ERROR_USUARIO=20
+
 # MANEJO DE ERRORES Y SEÑALES
 
 # Variables de estado para manejo de señales
 declare -i EN_APAGADO=0
 declare -i TRAP_ACTIVO=0
 declare -i SIGNAL_RECIBIDA=0
+
+# Función para obtener descripción del código de salida
+obtener_mensaje_error() {
+    local codigo=$1
+    case $codigo in
+        0) echo "Operación exitosa" ;;
+        1) echo "Error general no especificado" ;;
+        2) echo "Error de permisos - sin acceso" ;;
+        3) echo "Error de proceso - fallo en operación" ;;
+        4) echo "Error de red - puerto o conexión" ;;
+        5) echo "Error de configuración - archivo inválido" ;;
+        6) echo "Error de señal - terminación inesperada" ;;
+        7) echo "Error de timeout - tiempo excedido" ;;
+        8) echo "Error de dependencia - herramienta faltante" ;;
+        9) echo "Error de validación - argumentos inválidos" ;;
+        10) echo "Error de archivo - no encontrado o corrupto" ;;
+        11) echo "Error de memoria - sin memoria disponible" ;;
+        12) echo "Error de disco - sin espacio disponible" ;;
+        13) echo "Error de servicio - systemd no disponible" ;;
+        14) echo "Error de autenticación - credenciales inválidas" ;;
+        15) echo "Error de protocolo - no soportado" ;;
+        16) echo "Error de versión - incompatible" ;;
+        17) echo "Error de estado - inconsistente" ;;
+        18) echo "Error de recurso - no disponible" ;;
+        19) echo "Error de límite - excedido" ;;
+        20) echo "Error de usuario - cancelado por usuario" ;;
+        130) echo "Terminado por SIGINT (Ctrl+C)" ;;
+        143) echo "Terminado por SIGTERM" ;;
+        137) echo "Terminado por SIGKILL" ;;
+        *) echo "Error desconocido (código: $codigo)" ;;
+    esac
+}
+
+# Función para salir con código específico y mensaje
+salir_con_error() {
+    local codigo=$1
+    local mensaje="${2:-$(obtener_mensaje_error $codigo)}"
+
+    log_mensaje "ERROR" "$mensaje"
+    log_mensaje "ERROR" "Saliendo con código: $codigo"
+
+    # Limpiar recursos si es necesario
+    if [[ -f "$PID_FILE" ]] && [[ $codigo -ne $EXIT_SUCCESS ]]; then
+        rm -f "$PID_FILE" 2>/dev/null
+    fi
+
+    exit $codigo
+}
 
 # Función para logging
 log_mensaje() {

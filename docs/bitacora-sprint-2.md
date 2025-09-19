@@ -242,3 +242,43 @@ $ ./src/gestor_procesos.sh iniciar
 - Limpieza garantizada con EXIT trap
 - Información detallada en logs para debugging
 
+### Códigos de salida específicos
+
+**Decisión técnica**: Definir y documentar códigos de salida específicos para cada tipo de error.
+
+**Implementación**:
+1. Definición de 21 códigos de salida (0-20):
+   - 0: EXIT_SUCCESS - Operación exitosa
+   - 1-9: Errores básicos (general, permisos, proceso, red, configuración, etc.)
+   - 10-20: Errores extendidos (archivo, memoria, disco, servicio, etc.)
+
+2. Funciones helper implementadas:
+   - `obtener_mensaje_error()`: Traduce código a mensaje descriptivo
+   - `salir_con_error()`: Salida controlada con logging y limpieza
+
+3. Documentación completa en `docs/codigos-salida.md`:
+   - Tabla de todos los códigos
+   - Ejemplos de uso
+   - Mejores prácticas
+   - Integración con systemd
+
+4. Script de prueba `tests/test_codigos_salida.sh`:
+   - Verifica definición de constantes
+   - Prueba función de mensajes
+   - Simula escenarios de error
+
+**Evidencia**:
+```bash
+$ ./tests/test_codigos_salida.sh
+✓ Todas las constantes están correctamente definidas
+Código 4: Error de red - puerto o conexión
+Código 8: Error de dependencia - herramienta faltante
+```
+
+**Mejores prácticas aplicadas**:
+- Usar siempre constantes, nunca números mágicos
+- Documentar cada código con su propósito
+- Log antes de salir para facilitar debugging
+- Propagar códigos en funciones
+- Limpieza de recursos antes de salir
+
