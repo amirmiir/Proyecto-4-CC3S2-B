@@ -150,3 +150,48 @@ Puertos utilizados:
 - `wc`: Conteo de líneas
 - `du`: Tamaño de archivos
 
+Parsing avanzado con awk
+
+**Decisión técnica**: Crear script especializado de análisis de métricas con uso intensivo de awk para procesamiento de logs.
+
+**Implementación**:
+1. Creación de `src/analizar_metricas.sh` con funciones especializadas:
+   - `extraer_metricas_rendimiento()`: Distribución temporal y frecuencia
+   - `analizar_errores_detallado()`: Clasificación de errores y códigos
+   - `analizar_senales()`: Detección de señales y ciclos de vida
+   - `analizar_puertos()`: Actividad de puertos y secuencias
+   - `generar_resumen()`: Resumen ejecutivo con calificación de salud
+
+2. Uso extensivo de awk para procesamiento:
+   - Arrays asociativos para conteo de patrones
+   - Cálculo de porcentajes y estadísticas
+   - Extracción de campos con match() y substr()
+   - Análisis multi-línea con BEGIN/END
+
+3. Integración con gestor principal mediante comando `metricas`
+
+**Evidencia**:
+```bash
+$ ./src/gestor_procesos.sh metricas
+╔══════════════════════════════════════════╗
+║   ANÁLISIS AVANZADO DE LOGS CON AWK     ║
+╚══════════════════════════════════════════╝
+
+Distribución temporal de eventos:
+  Hora 13:00 - 14 eventos (100.0%)
+
+Ciclos de vida del proceso:
+  Inicios exitosos: 1
+  Tasa de apagado limpio: 100.0%
+
+Salud del sistema:
+  Puntuación: 100/100 (EXCELENTE)
+```
+
+**Patrones de awk utilizados**:
+- Procesamiento de campos con `$1, $2, $NF`
+- Funciones match() y substr() para extracción
+- Arrays asociativos para agregación
+- Cálculos matemáticos y formateo con printf
+- Análisis condicional con patrones regexp
+

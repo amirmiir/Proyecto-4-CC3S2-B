@@ -691,14 +691,27 @@ main() {
             analizar_logs "${1:-1 hour ago}"
             resultado=$?
             ;;
+        # Comando de análisis avanzado con awk
+        metricas|analizar-metricas)
+            # Ejecutar script de análisis avanzado
+            local script_metricas="$SCRIPT_DIR/analizar_metricas.sh"
+            if [[ -x "$script_metricas" ]]; then
+                "$script_metricas"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de métricas no encontrado: $script_metricas"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|start|stop|restart|reload|systemctl}"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|start|stop|restart|reload|systemctl}"
             echo ""
             echo "Comandos básicos (sin systemd):"
             echo "  iniciar  - Inicia el proceso gestor"
             echo "  detener  - Detiene el proceso gestor"
             echo "  estado   - Muestra el estado actual"
             echo "  logs     - Analiza logs del sistema"
+            echo "  metricas - Análisis avanzado con awk"
             echo ""
             echo "Comandos systemd:"
             echo "  start    - Inicia servicio via systemctl"
