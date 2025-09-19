@@ -282,3 +282,58 @@ Código 8: Error de dependencia - herramienta faltante
 - Propagar códigos en funciones
 - Limpieza de recursos antes de salir
 
+### Análisis TLS vs HTTP
+
+**Decisión técnica**: Implementar análisis comparativo completo entre HTTP y HTTPS usando curl verbose.
+
+**Implementación**:
+1. Creación de `src/analizar_tls.sh` con funciones especializadas:
+   - `analizar_http()`: Análisis detallado de protocolo HTTP
+   - `analizar_tls()`: Análisis de HTTPS/TLS con certificados
+   - `comparar_protocolos()`: Comparación lado a lado
+
+2. Análisis HTTP incluye:
+   - Headers de seguridad (HSTS, CSP, X-Frame-Options, etc.)
+   - Análisis de cookies (Secure, HttpOnly, SameSite)
+   - Métricas de rendimiento con curl
+   - Códigos de respuesta y redirecciones
+
+3. Análisis HTTPS/TLS incluye:
+   - Versión de TLS y suite de cifrado
+   - Información del certificado (emisor, validez, verificación)
+   - Tiempo de handshake TLS
+   - Protocolo ALPN y HTTP/2
+
+4. Comparación con awk:
+   - Cálculo de overhead TLS
+   - Tabla comparativa de características
+   - Recomendaciones de seguridad
+
+5. Integración con `monitor_redes.sh`:
+   - Nuevo comando `comparar` agregado
+   - Análisis múltiple de dominios
+
+**Evidencia**:
+```bash
+$ ./src/monitor_redes.sh comparar github.com
+=== Análisis HTTP ===
+Headers de seguridad:
+  ✓ Strict-Transport-Security: max-age=31536000
+  ✓ X-Frame-Options: deny
+  ✓ Content-Security-Policy: [presente]
+
+=== Análisis HTTPS/TLS ===
+SSL connection using TLSv1.3
+Suite de cifrado: AEAD-CHACHA20-POLY1305-SHA256
+  ✓ Versión TLS moderna
+Verificación SSL: EXITOSA
+
+Overhead TLS: 0.060s
+```
+
+**Uso de curl verbose**:
+- `curl -v` para análisis detallado
+- `--write-out` para métricas personalizadas
+- `--tlsv1.2` para forzar versión mínima
+- Extracción de información con awk
+

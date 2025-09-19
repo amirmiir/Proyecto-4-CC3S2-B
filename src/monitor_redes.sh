@@ -204,6 +204,7 @@ COMANDOS:
     http        Verificar conectividad HTTP
     dns         Verificar resolución DNS
     tls         Verificar certificados TLS
+    comparar    Comparar HTTP vs HTTPS
     todo        Ejecutar todas las verificaciones
     ayuda       Mostrar esta ayuda
 
@@ -230,6 +231,76 @@ CÓDIGOS DE SALIDA:
     8 - Error de dependencia
     9 - Error de validación
 EOF
+}
+
+# Función para comparar HTTP vs HTTPS
+comparar_http_tls() {
+    local targets="${1:-$TARGETS}"
+
+    log_info "=== Iniciando comparación HTTP vs HTTPS ==="
+
+    # Convertir targets a array
+    IFS=',' read -ra hosts <<< "$targets"
+
+    for host in "${hosts[@]}"; do
+        # Limpiar espacios
+        host=$(echo "$host" | tr -d ' ')
+
+        log_info "Analizando: $host"
+
+        # Llamar al script de análisis TLS
+        local script_tls="$SCRIPT_DIR/analizar_tls.sh"
+        if [[ -x "$script_tls" ]]; then
+            "$script_tls" "$host"
+        else
+            # Análisis básico si el script no está disponible
+            log_info "Realizando análisis básico para $host"
+
+            # Probar HTTP
+            echo ""
+            echo "Probando HTTP://$host"
+            local http_time=$(curl -o /dev/null -s -w '%{time_total}' "http://$host" 2>/dev/null)
+            local http_code=$(curl -o /dev/null -s -w '%{http_code}' "http://$host" 2>/dev/null)
+            echo "  Código HTTP: $http_code"
+            echo "  Tiempo: ${http_time}s"
+
+            # Probar HTTPS
+            echo ""
+            echo "Probando HTTPS://$host"
+            local https_time=$(curl -o /dev/null -s -w '%{time_total}' "https://$host" 2>/dev/null)
+            local https_code=$(curl -o /dev/null -s -w '%{http_code}' "https://$host" 2>/dev/null)
+            local ssl_verify=$(curl -o /dev/null -s -w '%{ssl_verify_result}' "https://$host" 2>/dev/null)
+            echo "  Código HTTPS: $https_code"
+            echo "  Tiempo: ${https_time}s"
+            echo "  Verificación SSL: $ssl_verify (0=OK)"
+
+            # Comparación simple con awk
+            echo ""
+            echo "Diferencias:"
+            awk -v http="$http_time" -v https="$https_time" 'BEGIN {
+                diff = https - http
+                if (diff > 0) {
+                    printf "  HTTPS es %.3fs más lento (overhead TLS)\n", diff
+                } else {
+                    printf "  HTTPS es %.3fs más rápido\n", -diff
+                }
+            }'
+
+            # Verificar HSTS
+            echo ""
+            if curl -sI "https://$host" | grep -qi "strict-transport-security"; then
+                echo "  ✓ HSTS habilitado"
+            else
+                echo "  ✗ HSTS no habilitado"
+            fi
+        fi
+
+        echo ""
+        echo "----------------------------------------"
+    done
+
+    log_info "Comparación completada"
+    return $EXIT_SUCCESS
 }
 
 # Función para verificar dependencias
@@ -279,6 +350,10 @@ main() {
         "tls")
             log_info "Ejecutando verificación TLS..."
             # Función a implementar en Sprint 2
+            ;;
+        "comparar")
+            log_info "Ejecutando comparación HTTP vs HTTPS..."
+            comparar_http_tls "${2:-$TARGETS}"
             ;;
         "todo")
             log_info "Ejecutando todas las verificaciones..."
