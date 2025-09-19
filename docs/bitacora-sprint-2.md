@@ -446,3 +446,56 @@ Reporte guardado en: /tmp/toolkit-logs/reporte-20250919.txt
 - Análisis de múltiples fuentes de datos
 - Compatibilidad con diferentes sistemas Unix
 
+### Tests con netcat
+
+**Decisión técnica**: Implementar suite completa de tests de red usando netcat (nc) para verificación de puertos y servicios.
+
+**Implementación**:
+1. Creación de `src/test_puertos_nc.sh` con funciones especializadas:
+   - `escanear_puerto()`: Verifica puerto individual
+   - `escanear_rango_puertos()`: Escaneo de rango con identificación de servicios
+   - `test_conectividad_tcp()`: Test completo TCP con banner grabbing
+   - `crear_servidor_prueba()`: Servidor HTTP simple con nc
+   - `test_transferencia_archivos()`: Envío/recepción de archivos
+   - `test_udp()`: Verificación de puertos UDP
+   - `analizar_servicios_comunes()`: Análisis de servicios estándar
+
+2. Características implementadas:
+   - Detección automática de versión de nc (OpenBSD/GNU)
+   - Identificación de servicios por puerto (SSH, HTTP, MySQL, etc.)
+   - Banner grabbing para obtener versiones de servicios
+   - Servidor de prueba HTTP con respuesta automática
+   - Transferencia bidireccional de archivos
+   - Tests UDP con verificación de envío
+
+3. Integración con monitor_redes.sh:
+   - Comando `netcat` o `nc` agregado
+   - Análisis automático de servicios comunes
+   - Verificación de puertos críticos
+
+**Evidencia**:
+```bash
+$ ./src/monitor_redes.sh netcat servicios localhost
+Análisis de Servicios Comunes:
+  SSH (puerto 22): INACTIVO
+  HTTP (puerto 80): ACTIVO
+    Server: nginx/1.29.1
+  HTTPS (puerto 443): ACTIVO
+  MySQL (puerto 3306): INACTIVO
+  HTTP-Alt (puerto 8080): ACTIVO
+
+$ ./src/test_puertos_nc.sh rango localhost 8000 8100
+Escaneando rango 8000-8100:
+  Puerto 8080: ABIERTO
+  Puerto 8081: ABIERTO
+Resumen: 2 puertos abiertos, 99 cerrados
+```
+
+**Casos de uso de netcat**:
+- Verificación rápida de disponibilidad de puertos
+- Banner grabbing para identificación de servicios
+- Creación de servidores de prueba temporales
+- Transferencia de archivos sin SSH/FTP
+- Debugging de protocolos de red
+- Tests de conectividad UDP
+

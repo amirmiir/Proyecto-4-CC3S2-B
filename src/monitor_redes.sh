@@ -205,6 +205,7 @@ COMANDOS:
     dns         Verificar resolución DNS
     tls         Verificar certificados TLS
     comparar    Comparar HTTP vs HTTPS
+    netcat      Tests de puertos con nc
     todo        Ejecutar todas las verificaciones
     ayuda       Mostrar esta ayuda
 
@@ -231,6 +232,54 @@ CÓDIGOS DE SALIDA:
     8 - Error de dependencia
     9 - Error de validación
 EOF
+}
+
+# Función para tests con netcat
+test_con_netcat() {
+    local accion="${1:-servicios}"
+    local host="${2:-localhost}"
+
+    log_info "=== Tests con netcat (nc) ==="
+
+    # Verificar disponibilidad de nc
+    if ! command -v nc >/dev/null 2>&1; then
+        log_error "netcat (nc) no está disponible"
+        return $EXIT_ERROR_DEPENDENCIA
+    fi
+
+    # Llamar al script de tests con nc
+    local script_nc="$SCRIPT_DIR/test_puertos_nc.sh"
+    if [[ -x "$script_nc" ]]; then
+        "$script_nc" "$accion" "$host"
+        return $?
+    else
+        # Test básico si el script no está disponible
+        log_info "Ejecutando test básico con nc"
+
+        # Convertir targets a array
+        IFS=',' read -ra hosts <<< "$TARGETS"
+
+        for target in "${hosts[@]}"; do
+            target=$(echo "$target" | tr -d ' ')
+            log_info "Verificando puertos comunes en $target"
+
+            # Puertos comunes a verificar
+            local puertos=(22 80 443 3306 5432 6379 8080)
+
+            for puerto in "${puertos[@]}"; do
+                echo -n "  Puerto $puerto: "
+                if nc -z -w2 "$target" "$puerto" 2>/dev/null; then
+                    echo "ABIERTO"
+                    log_info "Puerto $target:$puerto ABIERTO"
+                else
+                    echo "CERRADO"
+                fi
+            done
+            echo ""
+        done
+    fi
+
+    return $EXIT_SUCCESS
 }
 
 # Función para comparar HTTP vs HTTPS
@@ -354,6 +403,10 @@ main() {
         "comparar")
             log_info "Ejecutando comparación HTTP vs HTTPS..."
             comparar_http_tls "${2:-$TARGETS}"
+            ;;
+        "netcat"|"nc")
+            log_info "Ejecutando tests con netcat..."
+            test_con_netcat "${2:-servicios}" "${3:-localhost}"
             ;;
         "todo")
             log_info "Ejecutando todas las verificaciones..."
