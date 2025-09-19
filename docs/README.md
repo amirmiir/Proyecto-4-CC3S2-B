@@ -129,6 +129,12 @@ El sistema maneja las siguientes señales Unix:
 | SIGUSR1 | `kill -USR1 <pid>` | Muestra estado detallado del sistema |
 | SIGUSR2 | `kill -USR2 <pid>` | Rota archivos de log con backup |
 | SIGQUIT | `kill -QUIT <pid>` | Terminación forzada inmediata |
+| SIGTSTP | `kill -TSTP <pid>` o Ctrl+Z | Pausa el proceso |
+| SIGCONT | `kill -CONT <pid>` | Reanuda proceso pausado |
+| SIGALRM | `kill -ALRM <pid>` | Verifica salud y reinicia si necesario |
+| SIGPIPE | (automática) | Maneja pipes rotas y procesos zombie |
+
+**Nota**: SIGKILL (9) no puede ser atrapado por diseño del sistema operativo
 
 Ejemplo de uso:
 ```bash

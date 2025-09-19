@@ -195,3 +195,50 @@ Salud del sistema:
 - Cálculos matemáticos y formateo con printf
 - Análisis condicional con patrones regexp
 
+### Implementar trap completo
+
+**Decisión técnica**: Implementar manejo completo y robusto de señales con traps extendidos.
+
+**Implementación**:
+1. Nueva función `configurar_traps()` que configura todos los traps centralizadamente:
+   - ERR: Manejo de errores con información de línea y comando
+   - EXIT: Limpieza automática de recursos
+   - INT, TERM, QUIT: Señales de terminación
+   - HUP: Recarga de configuración
+   - USR1, USR2: Señales de usuario personalizadas
+   - TSTP, CONT: Pausa y reanudación de procesos
+   - ALRM: Manejo de timeouts y alarmas
+   - PIPE: Recuperación de pipes rotas
+
+2. Variables de estado mejoradas:
+   - `EN_APAGADO`: Previene manejo múltiple de señales de terminación
+   - `TRAP_ACTIVO`: Evita recursión infinita en limpieza
+   - `SIGNAL_RECIBIDA`: Tracking de señales recibidas
+
+3. Función `limpiar_recursos()` mejorada:
+   - Termina procesos hijos con `jobs -p`
+   - Limpieza en dos fases (SIGTERM luego SIGKILL)
+   - Eliminación de archivos temporales
+   - Prevención de recursión con flag TRAP_ACTIVO
+
+4. Nuevas señales manejadas:
+   - SIGTSTP: Pausa proceso con kill -STOP
+   - SIGCONT: Reanuda proceso con kill -CONT
+   - SIGALRM: Verifica salud y reinicia si es necesario
+   - SIGPIPE: Detecta y limpia procesos zombie
+
+**Evidencia**:
+```bash
+$ ./src/gestor_procesos.sh iniciar
+[INFO] Traps configurados para ERR, EXIT, INT, TERM, HUP, USR1, USR2, QUIT, TSTP, CONT, ALRM, PIPE
+[INFO] Proceso iniciado con PID 2781 en puerto 8383
+```
+
+**Nota importante**: SIGKILL (9) no puede ser atrapado por diseño del sistema operativo
+
+**Mejoras de robustez**:
+- Prevención de condiciones de carrera
+- Manejo de procesos zombie
+- Limpieza garantizada con EXIT trap
+- Información detallada en logs para debugging
+

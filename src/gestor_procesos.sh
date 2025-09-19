@@ -51,6 +51,11 @@ readonly EXIT_ERROR_VALIDACION=9
 
 # MANEJO DE ERRORES Y SEÑALES
 
+# Variables de estado para manejo de señales
+declare -i EN_APAGADO=0
+declare -i TRAP_ACTIVO=0
+declare -i SIGNAL_RECIBIDA=0
+
 # Función para logging
 log_mensaje() {
     local nivel="$1"
@@ -69,28 +74,57 @@ log_mensaje() {
     fi
 }
 
-# Función de limpieza al salir
+# Función de limpieza mejorada al salir
 limpiar_recursos() {
     local codigo_salida=$?
 
-    # Solo limpiar si no fue una salida limpia
-    if [[ $codigo_salida -ne 0 ]]; then
-        log_mensaje "WARN" "Limpiando recursos tras error (código: $codigo_salida)"
+    # Evitar recursión infinita
+    if [[ $TRAP_ACTIVO -eq 1 ]]; then
+        return
+    fi
+    TRAP_ACTIVO=1
 
-        # Limpiar PID si existe y es nuestro
-        if [[ -f "$PID_FILE" ]]; then
-            local pid_actual=$(cat "$PID_FILE" 2>/dev/null)
-            if [[ "$pid_actual" == "$$" ]]; then
-                rm -f "$PID_FILE"
-                log_mensaje "INFO" "Archivo PID limpiado"
-            fi
+    # Solo limpiar si no fue una salida limpia o si hay señal pendiente
+    if [[ $codigo_salida -ne 0 ]] || [[ $SIGNAL_RECIBIDA -eq 1 ]]; then
+        log_mensaje "WARN" "Limpiando recursos tras salida (código: $codigo_salida)"
+
+        # Terminar procesos hijos si existen
+        local jobs_list=$(jobs -p 2>/dev/null)
+        if [[ -n "$jobs_list" ]]; then
+            log_mensaje "INFO" "Terminando procesos hijos..."
+            kill $jobs_list 2>/dev/null
+            wait $jobs_list 2>/dev/null
         fi
+
+        # Limpiar PID si existe
+        if [[ -f "$PID_FILE" ]]; then
+            local pid_guardado=$(cat "$PID_FILE" 2>/dev/null)
+
+            # Terminar proceso si aún está activo
+            if [[ -n "$pid_guardado" ]] && kill -0 "$pid_guardado" 2>/dev/null; then
+                log_mensaje "INFO" "Terminando proceso $pid_guardado"
+                kill -TERM "$pid_guardado" 2>/dev/null
+                sleep 1
+
+                # Si aún existe, forzar terminación
+                if kill -0 "$pid_guardado" 2>/dev/null; then
+                    kill -KILL "$pid_guardado" 2>/dev/null
+                fi
+            fi
+
+            rm -f "$PID_FILE"
+            log_mensaje "INFO" "Archivo PID limpiado"
+        fi
+
+        # Limpiar archivos temporales
+        rm -f /tmp/gestor-*.tmp 2>/dev/null
     fi
 
+    TRAP_ACTIVO=0
     exit $codigo_salida
 }
 
-# Función para manejar errores
+# Función mejorada para manejar errores
 manejar_error() {
     local linea="$1"
     local comando="$2"
@@ -116,21 +150,43 @@ manejar_error() {
     exit $codigo
 }
 
-# Variables globales para control de señales
-SIGNAL_RECIBIDA=""
-EN_APAGADO=0
+# Configuración completa de traps
+configurar_traps() {
+    # Trap para errores (ERR)
+    trap 'manejar_error "$LINENO" "$BASH_COMMAND" "$?"' ERR
+
+    # Trap para salida (EXIT)
+    trap 'limpiar_recursos' EXIT
+
+    # Traps para señales estándar
+    trap 'manejar_signal "INT"' INT      # Ctrl+C
+    trap 'manejar_signal "TERM"' TERM    # Terminación normal
+    trap 'manejar_signal "HUP"' HUP      # Hangup/Recarga
+    trap 'manejar_signal "USR1"' USR1    # Señal usuario 1
+    trap 'manejar_signal "USR2"' USR2    # Señal usuario 2
+    trap 'manejar_signal "QUIT"' QUIT    # Quit
+
+    # Señales adicionales
+    trap 'manejar_signal "TSTP"' TSTP    # Terminal stop (Ctrl+Z)
+    trap 'manejar_signal "CONT"' CONT    # Continuar después de stop
+    trap 'manejar_signal "ALRM"' ALRM    # Alarma/timeout
+    trap 'manejar_signal "PIPE"' PIPE    # Pipe rota
+
+    # Nota: SIGKILL (9) no puede ser atrapado
+    log_mensaje "INFO" "Traps configurados para ERR, EXIT, INT, TERM, HUP, USR1, USR2, QUIT, TSTP, CONT, ALRM, PIPE"
+}
 
 # Función mejorada para manejar señales
 manejar_signal() {
     local signal="$1"
 
     # Evitar manejo múltiple de señales
-    if [[ $EN_APAGADO -eq 1 ]]; then
+    if [[ $EN_APAGADO -eq 1 ]] && [[ "$signal" =~ ^(INT|TERM|QUIT)$ ]]; then
         log_mensaje "WARN" "Ya se está procesando una señal de apagado"
         return
     fi
 
-    SIGNAL_RECIBIDA="$signal"
+    SIGNAL_RECIBIDA=1
 
     case "$signal" in
         INT)
@@ -238,6 +294,61 @@ manejar_signal() {
             exit $EXIT_ERROR_SIGNAL
             ;;
 
+        TSTP)
+            log_mensaje "INFO" "Recibida señal SIGTSTP (Ctrl+Z) - pausando proceso"
+
+            # Pausar el proceso
+            if [[ -f "$PID_FILE" ]]; then
+                local pid=$(cat "$PID_FILE")
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -STOP "$pid" 2>/dev/null
+                    log_mensaje "INFO" "Proceso $pid pausado"
+                    echo "Proceso pausado. Use 'kill -CONT $pid' para continuar"
+                fi
+            fi
+            ;;
+
+        CONT)
+            log_mensaje "INFO" "Recibida señal SIGCONT - reanudando proceso"
+
+            # Reanudar el proceso
+            if [[ -f "$PID_FILE" ]]; then
+                local pid=$(cat "$PID_FILE")
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -CONT "$pid" 2>/dev/null
+                    log_mensaje "INFO" "Proceso $pid reanudado"
+                fi
+            fi
+            ;;
+
+        ALRM)
+            log_mensaje "WARN" "Recibida señal SIGALRM - timeout/alarma"
+
+            # Verificar estado del proceso
+            if proceso_activo; then
+                log_mensaje "WARN" "Proceso activo durante alarma - verificando salud"
+                verificar_estado
+            else
+                log_mensaje "ERROR" "Proceso inactivo en alarma - reiniciando"
+                iniciar_proceso
+            fi
+            ;;
+
+        PIPE)
+            log_mensaje "ERROR" "Recibida señal SIGPIPE - pipe rota"
+
+            # Intentar reconectar o limpiar recursos
+            log_mensaje "INFO" "Intentando recuperar de pipe rota"
+
+            # Verificar si hay procesos zombies
+            local zombies=$(ps aux | grep -c "[Zz]ombie" || echo 0)
+            if [[ $zombies -gt 0 ]]; then
+                log_mensaje "WARN" "Detectados $zombies procesos zombie"
+                # Limpiar procesos zombies si es posible
+                wait 2>/dev/null
+            fi
+            ;;
+
         *)
             log_mensaje "WARN" "Señal no manejada: $signal"
             ;;
@@ -258,16 +369,11 @@ proceso_activo() {
     return 1
 }
 
-# Configurar traps mejorados para manejo de señales
+# Configurar traps completos para manejo de señales
 set -E
-trap 'manejar_error $LINENO "$BASH_COMMAND" $?' ERR
-trap 'limpiar_recursos' EXIT
-trap 'manejar_signal INT' INT
-trap 'manejar_signal TERM' TERM
-trap 'manejar_signal HUP' HUP
-trap 'manejar_signal USR1' USR1
-trap 'manejar_signal USR2' USR2
-trap 'manejar_signal QUIT' QUIT
+
+# Llamar a la función de configuración de traps
+configurar_traps
 
 # FUNCIONES DE GESTIÓN DE PROCESOS
 
