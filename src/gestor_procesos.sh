@@ -870,8 +870,20 @@ main() {
                 resultado=$EXIT_ERROR_CONFIGURACION
             fi
             ;;
+        # Comando de verificación de sockets
+        sockets|puertos)
+            shift
+            local script_sockets="$SCRIPT_DIR/verificar_sockets.sh"
+            if [[ -x "$script_sockets" ]]; then
+                "$script_sockets" "${1:-puerto}" "$PORT"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de sockets no encontrado: $script_sockets"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|start|stop|restart|reload|systemctl}"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|sockets|start|stop|restart|reload|systemctl}"
             echo ""
             echo "Comandos básicos (sin systemd):"
             echo "  iniciar  - Inicia el proceso gestor"
@@ -879,6 +891,7 @@ main() {
             echo "  estado   - Muestra el estado actual"
             echo "  logs     - Analiza logs del sistema"
             echo "  metricas - Análisis avanzado con awk"
+            echo "  sockets  - Verificar puertos y conexiones"
             echo ""
             echo "Comandos systemd:"
             echo "  start    - Inicia servicio via systemctl"

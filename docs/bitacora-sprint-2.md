@@ -337,3 +337,53 @@ Overhead TLS: 0.060s
 - `--tlsv1.2` para forzar versión mínima
 - Extracción de información con awk
 
+### Verificación de sockets con ss
+
+**Decisión técnica**: Implementar verificación completa de sockets y conexiones usando ss con fallback a netstat.
+
+**Implementación**:
+1. Creación de `src/verificar_sockets.sh` con análisis completo:
+   - `analizar_puertos_tcp()`: Lista puertos escuchando con clasificación
+   - `analizar_conexiones_activas()`: Estados y top IPs remotas
+   - `verificar_puerto_especifico()`: Verifica puerto individual
+   - `analizar_sockets_unix()`: Análisis de sockets locales
+   - `analizar_rendimiento_red()`: Métricas de buffers y retransmisiones
+   - `generar_resumen_sockets()`: Resumen ejecutivo
+
+2. Compatibilidad multiplataforma:
+   - Detección automática de ss disponibilidad
+   - Fallback a netstat en sistemas sin ss (macOS)
+   - Uso de lsof como alternativa para procesos
+
+3. Análisis con awk implementado:
+   - Clasificación de puertos por servicio
+   - Conteo de conexiones por estado
+   - Top 10 IPs con más conexiones
+   - Cálculo de métricas de rendimiento
+   - Detección de puertos peligrosos
+
+4. Integración con gestor principal:
+   - Comando `sockets` o `puertos` agregado
+   - Verificación automática del puerto del gestor
+
+**Evidencia**:
+```bash
+$ ./src/gestor_procesos.sh sockets puerto 8080
+=== Verificación Puerto 8080 ===
+  ✗ Puerto 8080 NO está escuchando
+  ✓ Puerto 8080 está DISPONIBLE para usar
+
+$ ./src/verificar_sockets.sh tcp
+Puertos TCP escuchando:
+  Puerto 22     - Estado: LISTEN    [SSH]
+  Puerto 80     - Estado: LISTEN    [HTTP]
+  Puerto 443    - Estado: LISTEN    [HTTPS]
+```
+
+**Características destacadas**:
+- Clasificación automática de puertos conocidos
+- Análisis de calidad con tasa de retransmisión
+- Detección de puertos peligrosos (23, 135, 139, 445)
+- Alertas de alto número de conexiones TIME_WAIT
+- Recomendaciones de seguridad automáticas
+
