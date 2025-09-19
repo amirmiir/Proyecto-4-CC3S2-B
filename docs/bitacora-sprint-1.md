@@ -232,10 +232,36 @@ $ ./src/monitor_redes.sh dns
 
 Para la verificación DNS se utilizó dig con parámetros `+short` para obtener solo las IPs y `+time=5` para timeout. El parsing con awk utiliza el patrón `/Query time:/` para extraer el campo 4 que contiene los milisegundos. Se implementó validación de IP con expresiones regulares para verificar formato IPv4 válido. La función procesa arrays de dominios usando IFS y maneja múltiples registros tomando solo el primero con `head -n1`.
 
+**Integrar verificaciones HTTP y DNS en función unificada**
+
+Se implementó la función `verificar_todo()` que ejecuta de forma secuencial las verificaciones HTTP y DNS con logging detallado y resumen final. La función cuenta errores, maneja códigos de salida apropiados y proporciona separadores visuales en los logs para mejorar la legibilidad. Incluye manejo robusto de fallos donde si una verificación falla, continúa con la siguiente pero retorna el código de error apropiado.
+
+Comando ejecutado para verificar la integración:
+```bash
+$ ./src/monitor_redes.sh todo
+[INFO] 2025-09-17 22:39:24 - === Iniciando verificación completa HTTP + DNS ===
+[INFO] 2025-09-17 22:39:24 - --- Verificación HTTP ---
+[INFO] 2025-09-17 22:39:27 - Verificación HTTP exitosa para http://httpbin.org/status/200
+[INFO] 2025-09-17 22:39:27 - --- Verificación DNS ---
+[INFO] 2025-09-17 22:39:28 - Verificación DNS completada exitosamente para todos los dominios
+[INFO] 2025-09-17 22:39:28 - === Resumen de verificaciones ===
+[INFO] 2025-09-17 22:39:28 - HTTP: EXITOSO | DNS: EXITOSO
+```
+
+### Decisiones Técnicas Día 3
+
+Para la integración se optó por ejecución secuencial HTTP → DNS para detectar problemas de conectividad antes de DNS. El conteo de errores permite continuidad en caso de fallo parcial. Los separadores visuales con echo vacío mejoran la legibilidad del log. El resumen final proporciona vista rápida del estado general del sistema de monitoreo.
+
 ### Commits Realizados Día 2
 
 ```bash
 abc1234 Implementar verificación DNS con dig
 def5678 Agregar parsing de resultados DNS con awk
+```
+
+### Commits Realizados Día 3
+
+```bash
+xyz9876 Integrar verificaciones HTTP y DNS
 ```
 

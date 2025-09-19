@@ -151,6 +151,50 @@ verificar_dns() {
     return $EXIT_SUCCESS
 }
 
+# Función para ejecutar todas las verificaciones (HTTP + DNS)
+verificar_todo() {
+    local exit_code=$EXIT_SUCCESS
+    local error_count=0
+    
+    log_info "=== Iniciando verificación completa HTTP + DNS ==="
+    
+    # Verificar HTTP primero
+    log_info "--- Verificación HTTP ---"
+    if ! verificar_http; then
+        log_error "Falló verificación HTTP"
+        ((error_count++))
+        exit_code=$EXIT_ERROR_RED
+    fi
+    
+    # Separador visual en logs
+    echo "" | tee -a "$LOG_FILE"
+    
+    # Verificar DNS después
+    log_info "--- Verificación DNS ---"
+    if ! verificar_dns; then
+        log_error "Falló verificación DNS"
+        ((error_count++))
+        exit_code=$EXIT_ERROR_RED
+    fi
+    
+    # Resumen final
+    echo "" | tee -a "$LOG_FILE"
+    log_info "=== Resumen de verificaciones ==="
+    if [[ $error_count -eq 0 ]]; then
+        log_info "Todas las verificaciones completadas exitosamente"
+        log_info "HTTP: EXITOSO | DNS: EXITOSO"
+    else
+        log_error "Se encontraron $error_count errores en las verificaciones"
+        if [[ $error_count -eq 1 ]]; then
+            log_error "Una verificación falló - revisar logs arriba"
+        else
+            log_error "Múltiples verificaciones fallaron - revisar logs arriba"
+        fi
+    fi
+    
+    return $exit_code
+}
+
 # Función para mostrar ayuda
 mostrar_ayuda() {
     cat << EOF
@@ -238,7 +282,7 @@ main() {
             ;;
         "todo")
             log_info "Ejecutando todas las verificaciones..."
-            # Función a implementar en Sprint 2
+            verificar_todo
             ;;
         "ayuda"|"--help"|"-h")
             mostrar_ayuda
