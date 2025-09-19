@@ -20,11 +20,43 @@ tools:
 	@command -v rsync >/dev/null 2>&1 || { echo "Error: rsync no está instalado"; exit 1; }
 	@echo "Todas las herramientas necesarias están disponibles"
 
-build: 
+build: tools
 	@echo "Construyendo el proyecto..."
+	@mkdir -p out/bin out/logs out/config
+	@echo "[INFO] Creando directorios de artefactos en out/"
 
-test: 
+	# Copiar scripts ejecutables
+	@cp src/gestor_procesos.sh out/bin/
+	@cp src/monitor_redes.sh out/bin/
+	@chmod +x out/bin/*.sh
+
+	# Crear archivo de configuración
+	@if [ -f .env ]; then \
+		cp .env out/config/; \
+	else \
+		cp .env.example out/config/.env; \
+	fi
+
+	# Crear estructura de logs
+	@touch out/logs/.gitkeep
+
+	# Generar información de build
+	@echo "VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo 'desarrollo')" > out/build-info.txt
+	@echo "BUILD_DATE=$(shell date -Iseconds)" >> out/build-info.txt
+	@echo "BUILD_USER=$(shell whoami)" >> out/build-info.txt
+	@echo "BUILD_HOST=$(shell hostname)" >> out/build-info.txt
+
+	@echo "[INFO] Artefactos preparados en out/"
+	@echo "[INFO] Verificando artefactos..."
+	@ls -la out/
+	@echo "[INFO] Build completado exitosamente"
+
+test:
 	@echo "Ejecutando pruebas..."
+	@command -v bats >/dev/null 2>&1 || { echo "Error: bats no está instalado. Instalar con: sudo apt install bats"; exit 1; }
+	@echo "[INFO] Ejecutando suite de tests Bats..."
+	@bats tests/test_basico.bats
+	@echo "[INFO] Todos los tests completados exitosamente"
 
 run: 
 	@echo "Ejecutando la aplicación..."

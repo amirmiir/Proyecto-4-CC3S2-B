@@ -4,6 +4,16 @@
 
 Sistema de gestión de procesos con enfoque en monitoreo de redes. Implementa principios de 12-Factor App para configuración mediante variables de entorno.
 
+## Configuración
+
+Para configurar el sistema, copiar el archivo de ejemplo y ajustar las variables según necesidad:
+```bash
+cp .env.example .env
+# Editar .env con valores personalizados
+```
+
+El archivo `.env` no se versiona en Git para mantener la configuración local separada del código.
+
 ## Instalación y Uso
 
 El sistema incluye dos scripts principales que requieren Bash 4.0 o superior:
@@ -80,8 +90,45 @@ Ambos scripts utilizan códigos de salida específicos según el tipo de error:
 ### Logs
 
 Los scripts generan logs en:
-- Gestor de procesos: `/tmp/gestor-logs/`
-- Monitor de redes: `/tmp/monitor-logs/`
+- Gestor de procesos: `/tmp/gestor-logs/gestor-web-YYYYMMDD.log`
+- Monitor de redes: `/tmp/monitor-logs/monitor-YYYYMMDD.log`
+
+Todos los mensajes incluyen timestamp y nivel (INFO, WARN, ERROR). El sistema de logging centralizado facilita el debugging y auditoría.
+
+## Manejo de Errores y Señales
+
+El gestor de procesos implementa manejo robusto de errores mediante:
+- **Trap ERR**: Captura errores y muestra línea y comando que falló
+- **Trap EXIT**: Limpia recursos automáticamente al salir
+- **Códigos de salida**: Retorna códigos específicos según el tipo de error
+
+### Señales Soportadas
+
+El sistema maneja las siguientes señales Unix:
+
+| Señal | Comando | Acción |
+|-------|---------|---------|
+| SIGINT | `kill -INT <pid>` o Ctrl+C | Interrupción con limpieza de recursos |
+| SIGTERM | `kill -TERM <pid>` | Apagado controlado con timeout |
+| SIGHUP | `kill -HUP <pid>` | Recarga configuración desde .env |
+| SIGUSR1 | `kill -USR1 <pid>` | Muestra estado detallado del sistema |
+| SIGUSR2 | `kill -USR2 <pid>` | Rota archivos de log con backup |
+| SIGQUIT | `kill -QUIT <pid>` | Terminación forzada inmediata |
+
+Ejemplo de uso:
+```bash
+# Iniciar proceso
+$ ./src/gestor_procesos.sh iniciar
+
+# Mostrar estado detallado
+$ kill -USR1 $(cat /tmp/gestor-web.pid)
+
+# Recargar configuración
+$ kill -HUP $(cat /tmp/gestor-web.pid)
+
+# Detener con apagado controlado
+$ ./src/gestor_procesos.sh detener
+```
 
 
 ## Equipo
