@@ -19,10 +19,25 @@ El archivo `.env` no se versiona en Git para mantener la configuración local se
 El sistema incluye dos scripts principales que requieren Bash 4.0 o superior:
 
 ### Gestor de Procesos
+
+#### Comandos básicos (sin systemd)
 ```bash
 ./src/gestor_procesos.sh iniciar  # Inicia el proceso
 ./src/gestor_procesos.sh detener  # Detiene el proceso
 ./src/gestor_procesos.sh estado   # Muestra el estado
+```
+
+#### Comandos systemd
+```bash
+./src/gestor_procesos.sh start     # Inicia via systemctl
+./src/gestor_procesos.sh stop      # Detiene via systemctl
+./src/gestor_procesos.sh restart   # Reinicia servicio
+./src/gestor_procesos.sh reload    # Recarga configuración
+
+# Control avanzado
+./src/gestor_procesos.sh systemctl status   # Estado detallado
+./src/gestor_procesos.sh systemctl enable   # Habilitar inicio automático
+./src/gestor_procesos.sh systemctl disable  # Deshabilitar inicio automático
 ```
 
 ### Monitor de Redes
@@ -87,6 +102,10 @@ Ambos scripts utilizan códigos de salida específicos según el tipo de error:
 - `dig` - Para consultas DNS (Sprint 2)
 - `openssl` - Para verificación TLS (Sprint 2)
 
+### Testing
+- `bats` - Framework de testing para Bash
+- `shellcheck` - Análisis estático de scripts (opcional)
+
 ### Logs
 
 Los scripts generan logs en:
@@ -114,6 +133,12 @@ El sistema maneja las siguientes señales Unix:
 | SIGUSR1 | `kill -USR1 <pid>` | Muestra estado detallado del sistema |
 | SIGUSR2 | `kill -USR2 <pid>` | Rota archivos de log con backup |
 | SIGQUIT | `kill -QUIT <pid>` | Terminación forzada inmediata |
+| SIGTSTP | `kill -TSTP <pid>` o Ctrl+Z | Pausa el proceso |
+| SIGCONT | `kill -CONT <pid>` | Reanuda proceso pausado |
+| SIGALRM | `kill -ALRM <pid>` | Verifica salud y reinicia si necesario |
+| SIGPIPE | (automática) | Maneja pipes rotas y procesos zombie |
+
+**Nota**: SIGKILL (9) no puede ser atrapado por diseño del sistema operativo
 
 Ejemplo de uso:
 ```bash
@@ -130,6 +155,128 @@ $ kill -HUP $(cat /tmp/gestor-web.pid)
 $ ./src/gestor_procesos.sh detener
 ```
 
+## Testing
+
+El proyecto incluye una suite completa de tests implementada con Bats (Bash Automated Testing System).
+
+### Ejecutar Tests
+
+```bash
+# Ejecutar todos los tests
+make test
+
+# Ejecutar tests específicos
+bats tests/test_basico.bats
+bats tests/test_procesos.bats
+bats tests/test_systemd.bats
+```
+
+### Suite de Tests Disponible
+
+#### `tests/test_basico.bats`
+- Verificación de scripts y permisos
+- Tests básicos de funcionalidad
+- Validación de Makefile targets
+
+#### `tests/test_procesos.bats` (Sprint 2)
+- Manejo de señales SIGTERM con trap
+- Validación de códigos de salida específicos
+- Verificación de permisos y directorios
+- Gestión de PID files y múltiples instancias
+- Integración con systemctl
+- Tests de variables de entorno
+- Funcionalidad de logging
+- Manejo de timeouts y procesos colgados
+- Pruebas de resistencia con señales concurrentes
+
+#### `tests/test_redes.bats` (Sprint 2)
+- Verificación HTTP con códigos de estado específicos
+- Validación de resolución DNS con servidores reales
+- Análisis TLS/HTTPS y comparación de protocolos
+- Manejo de timeouts y conexiones lentas
+- Integración con herramientas Unix toolkit (curl, dig, awk, nc)
+- Tests de resistencia con servidores inválidos
+- Validación de parámetros de entrada
+- Generación de logs con formato correcto
+- Verificaciones completas (modo "todo")
+- Integración con tests de puertos netcat
+- Validación de códigos de salida específicos
+
+#### `tests/test_systemd.bats`
+- Verificación de archivos systemd
+- Tests de instalación de servicios
+- Validación de configuración
+
+Los tests incluyen configuración automática de setup/teardown para limpiar procesos y archivos temporales, evitando interferencias entre ejecuciones.
+
+## Makefile - Gestión Automatizada
+
+El proyecto incluye un Makefile avanzado que automatiza todas las operaciones del ciclo de desarrollo:
+
+### Targets Principales
+
+```bash
+make tools    # Verificar herramientas del sistema
+make build    # Construir artefactos del proyecto
+make test     # Ejecutar suite completa de tests
+make run      # Ejecutar flujo completo (build + monitoreo + gestor)
+make clean    # Limpiar archivos generados
+```
+
+### Targets de Gestión
+
+```bash
+make stop     # Detener gestor de procesos
+make status   # Ver estado del gestor
+make logs     # Ver logs del gestor
+make help     # Mostrar ayuda completa
+```
+
+### Target run - Flujo Completo
+
+El target `run` ejecuta una secuencia completa de operaciones:
+
+1. **Build automático**: Construye todos los artefactos necesarios
+2. **Verificación de configuración**: Carga variables de entorno (.env)
+3. **Monitoreo de redes**: Ejecuta verificaciones HTTP/DNS/TLS completas
+4. **Estado del sistema**: Verifica estado actual del gestor
+5. **Inicio del gestor**: Inicia el proceso principal con manejo de errores
+6. **Verificación funcional**: Confirma que el gestor responde correctamente
+7. **Diagnóstico del sistema**: Ejecuta verificaciones de sockets y métricas
+8. **Información final**: Proporciona comandos para gestión posterior
+
+### Flujo Típico de Desarrollo
+
+```bash
+# 1. Verificar dependencias del sistema
+make tools
+
+# 2. Ejecutar tests para validar funcionalidad
+make test
+
+# 3. Iniciar aplicación completa
+make run
+
+# 4. Verificar estado durante ejecución
+make status
+
+# 5. Ver logs si es necesario
+make logs
+
+# 6. Detener cuando termine el trabajo
+make stop
+
+# 7. Limpiar archivos temporales
+make clean
+```
+
+### Variables de Entorno Soportadas
+
+```bash
+PORT=9090 MESSAGE='Mi servidor' RELEASE='v2.0.0' make run
+```
+
+El Makefile soporta todas las variables de entorno del proyecto y proporciona valores por defecto apropiados.
 
 ## Equipo
 
