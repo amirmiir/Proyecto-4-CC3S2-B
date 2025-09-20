@@ -189,12 +189,94 @@ bats tests/test_systemd.bats
 - Manejo de timeouts y procesos colgados
 - Pruebas de resistencia con señales concurrentes
 
+#### `tests/test_redes.bats` (Sprint 2)
+- Verificación HTTP con códigos de estado específicos
+- Validación de resolución DNS con servidores reales
+- Análisis TLS/HTTPS y comparación de protocolos
+- Manejo de timeouts y conexiones lentas
+- Integración con herramientas Unix toolkit (curl, dig, awk, nc)
+- Tests de resistencia con servidores inválidos
+- Validación de parámetros de entrada
+- Generación de logs con formato correcto
+- Verificaciones completas (modo "todo")
+- Integración con tests de puertos netcat
+- Validación de códigos de salida específicos
+
 #### `tests/test_systemd.bats`
 - Verificación de archivos systemd
 - Tests de instalación de servicios
 - Validación de configuración
 
 Los tests incluyen configuración automática de setup/teardown para limpiar procesos y archivos temporales, evitando interferencias entre ejecuciones.
+
+## Makefile - Gestión Automatizada
+
+El proyecto incluye un Makefile avanzado que automatiza todas las operaciones del ciclo de desarrollo:
+
+### Targets Principales
+
+```bash
+make tools    # Verificar herramientas del sistema
+make build    # Construir artefactos del proyecto
+make test     # Ejecutar suite completa de tests
+make run      # Ejecutar flujo completo (build + monitoreo + gestor)
+make clean    # Limpiar archivos generados
+```
+
+### Targets de Gestión
+
+```bash
+make stop     # Detener gestor de procesos
+make status   # Ver estado del gestor
+make logs     # Ver logs del gestor
+make help     # Mostrar ayuda completa
+```
+
+### Target run - Flujo Completo
+
+El target `run` ejecuta una secuencia completa de operaciones:
+
+1. **Build automático**: Construye todos los artefactos necesarios
+2. **Verificación de configuración**: Carga variables de entorno (.env)
+3. **Monitoreo de redes**: Ejecuta verificaciones HTTP/DNS/TLS completas
+4. **Estado del sistema**: Verifica estado actual del gestor
+5. **Inicio del gestor**: Inicia el proceso principal con manejo de errores
+6. **Verificación funcional**: Confirma que el gestor responde correctamente
+7. **Diagnóstico del sistema**: Ejecuta verificaciones de sockets y métricas
+8. **Información final**: Proporciona comandos para gestión posterior
+
+### Flujo Típico de Desarrollo
+
+```bash
+# 1. Verificar dependencias del sistema
+make tools
+
+# 2. Ejecutar tests para validar funcionalidad
+make test
+
+# 3. Iniciar aplicación completa
+make run
+
+# 4. Verificar estado durante ejecución
+make status
+
+# 5. Ver logs si es necesario
+make logs
+
+# 6. Detener cuando termine el trabajo
+make stop
+
+# 7. Limpiar archivos temporales
+make clean
+```
+
+### Variables de Entorno Soportadas
+
+```bash
+PORT=9090 MESSAGE='Mi servidor' RELEASE='v2.0.0' make run
+```
+
+El Makefile soporta todas las variables de entorno del proyecto y proporciona valores por defecto apropiados.
 
 ## Equipo
 
