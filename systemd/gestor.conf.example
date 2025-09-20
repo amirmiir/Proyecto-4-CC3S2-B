@@ -1,0 +1,32 @@
+# Configuración del servicio Gestor Web
+# Copiar a /etc/gestor-web/gestor.conf y ajustar valores
+
+# Puerto del servicio
+PORT=8080
+
+# Mensaje del servidor
+MESSAGE="Servidor gestionado por systemd"
+
+# Versión del release
+RELEASE=v1.0.0
+
+# Servidor DNS para monitoreo
+DNS_SERVER=8.8.8.8
+
+# Objetivos de monitoreo (separados por comas)
+TARGETS=localhost,example.com
+
+# URL de configuración
+CONFIG_URL=http://localhost:8080/config
+
+# Timeout para operaciones de red (segundos)
+TIMEOUT=30
+
+# Nivel de log (DEBUG, INFO, WARN, ERROR)
+LOG_LEVEL=INFO
+
+# Máximo tamaño del log antes de rotar (en MB)
+MAX_LOG_SIZE=100
+
+# Número de logs antiguos a mantener
+LOG_ROTATE_COUNT=10

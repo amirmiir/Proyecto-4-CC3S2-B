@@ -37,7 +37,7 @@ readonly PID_DIR="${PID_DIR:-/tmp}"
 readonly PID_FILE="${PID_DIR}/gestor-web.pid"
 readonly LOG_FILE="${LOG_DIR}/gestor-web-$(date +%Y%m%d).log"
 
-# Códigos de salida específicos
+# Códigos de salida específicos (0-9)
 readonly EXIT_SUCCESS=0
 readonly EXIT_ERROR_GENERAL=1
 readonly EXIT_ERROR_PERMISOS=2
@@ -49,7 +49,73 @@ readonly EXIT_ERROR_TIMEOUT=7
 readonly EXIT_ERROR_DEPENDENCIA=8
 readonly EXIT_ERROR_VALIDACION=9
 
+# Códigos de salida extendidos (10-20)
+readonly EXIT_ERROR_ARCHIVO=10
+readonly EXIT_ERROR_MEMORIA=11
+readonly EXIT_ERROR_DISCO=12
+readonly EXIT_ERROR_SERVICIO=13
+readonly EXIT_ERROR_AUTENTICACION=14
+readonly EXIT_ERROR_PROTOCOLO=15
+readonly EXIT_ERROR_VERSION=16
+readonly EXIT_ERROR_ESTADO=17
+readonly EXIT_ERROR_RECURSO=18
+readonly EXIT_ERROR_LIMITE=19
+readonly EXIT_ERROR_USUARIO=20
+
 # MANEJO DE ERRORES Y SEÑALES
+
+# Variables de estado para manejo de señales
+declare -i EN_APAGADO=0
+declare -i TRAP_ACTIVO=0
+declare -i SIGNAL_RECIBIDA=0
+
+# Función para obtener descripción del código de salida
+obtener_mensaje_error() {
+    local codigo=$1
+    case $codigo in
+        0) echo "Operación exitosa" ;;
+        1) echo "Error general no especificado" ;;
+        2) echo "Error de permisos - sin acceso" ;;
+        3) echo "Error de proceso - fallo en operación" ;;
+        4) echo "Error de red - puerto o conexión" ;;
+        5) echo "Error de configuración - archivo inválido" ;;
+        6) echo "Error de señal - terminación inesperada" ;;
+        7) echo "Error de timeout - tiempo excedido" ;;
+        8) echo "Error de dependencia - herramienta faltante" ;;
+        9) echo "Error de validación - argumentos inválidos" ;;
+        10) echo "Error de archivo - no encontrado o corrupto" ;;
+        11) echo "Error de memoria - sin memoria disponible" ;;
+        12) echo "Error de disco - sin espacio disponible" ;;
+        13) echo "Error de servicio - systemd no disponible" ;;
+        14) echo "Error de autenticación - credenciales inválidas" ;;
+        15) echo "Error de protocolo - no soportado" ;;
+        16) echo "Error de versión - incompatible" ;;
+        17) echo "Error de estado - inconsistente" ;;
+        18) echo "Error de recurso - no disponible" ;;
+        19) echo "Error de límite - excedido" ;;
+        20) echo "Error de usuario - cancelado por usuario" ;;
+        130) echo "Terminado por SIGINT (Ctrl+C)" ;;
+        143) echo "Terminado por SIGTERM" ;;
+        137) echo "Terminado por SIGKILL" ;;
+        *) echo "Error desconocido (código: $codigo)" ;;
+    esac
+}
+
+# Función para salir con código específico y mensaje
+salir_con_error() {
+    local codigo=$1
+    local mensaje="${2:-$(obtener_mensaje_error $codigo)}"
+
+    log_mensaje "ERROR" "$mensaje"
+    log_mensaje "ERROR" "Saliendo con código: $codigo"
+
+    # Limpiar recursos si es necesario
+    if [[ -f "$PID_FILE" ]] && [[ $codigo -ne $EXIT_SUCCESS ]]; then
+        rm -f "$PID_FILE" 2>/dev/null
+    fi
+
+    exit $codigo
+}
 
 # Función para logging
 log_mensaje() {
@@ -69,28 +135,57 @@ log_mensaje() {
     fi
 }
 
-# Función de limpieza al salir
+# Función de limpieza mejorada al salir
 limpiar_recursos() {
     local codigo_salida=$?
 
-    # Solo limpiar si no fue una salida limpia
-    if [[ $codigo_salida -ne 0 ]]; then
-        log_mensaje "WARN" "Limpiando recursos tras error (código: $codigo_salida)"
+    # Evitar recursión infinita
+    if [[ $TRAP_ACTIVO -eq 1 ]]; then
+        return
+    fi
+    TRAP_ACTIVO=1
 
-        # Limpiar PID si existe y es nuestro
-        if [[ -f "$PID_FILE" ]]; then
-            local pid_actual=$(cat "$PID_FILE" 2>/dev/null)
-            if [[ "$pid_actual" == "$$" ]]; then
-                rm -f "$PID_FILE"
-                log_mensaje "INFO" "Archivo PID limpiado"
-            fi
+    # Solo limpiar si no fue una salida limpia o si hay señal pendiente
+    if [[ $codigo_salida -ne 0 ]] || [[ $SIGNAL_RECIBIDA -eq 1 ]]; then
+        log_mensaje "WARN" "Limpiando recursos tras salida (código: $codigo_salida)"
+
+        # Terminar procesos hijos si existen
+        local jobs_list=$(jobs -p 2>/dev/null)
+        if [[ -n "$jobs_list" ]]; then
+            log_mensaje "INFO" "Terminando procesos hijos..."
+            kill $jobs_list 2>/dev/null
+            wait $jobs_list 2>/dev/null
         fi
+
+        # Limpiar PID si existe
+        if [[ -f "$PID_FILE" ]]; then
+            local pid_guardado=$(cat "$PID_FILE" 2>/dev/null)
+
+            # Terminar proceso si aún está activo
+            if [[ -n "$pid_guardado" ]] && kill -0 "$pid_guardado" 2>/dev/null; then
+                log_mensaje "INFO" "Terminando proceso $pid_guardado"
+                kill -TERM "$pid_guardado" 2>/dev/null
+                sleep 1
+
+                # Si aún existe, forzar terminación
+                if kill -0 "$pid_guardado" 2>/dev/null; then
+                    kill -KILL "$pid_guardado" 2>/dev/null
+                fi
+            fi
+
+            rm -f "$PID_FILE"
+            log_mensaje "INFO" "Archivo PID limpiado"
+        fi
+
+        # Limpiar archivos temporales
+        rm -f /tmp/gestor-*.tmp 2>/dev/null
     fi
 
+    TRAP_ACTIVO=0
     exit $codigo_salida
 }
 
-# Función para manejar errores
+# Función mejorada para manejar errores
 manejar_error() {
     local linea="$1"
     local comando="$2"
@@ -116,21 +211,43 @@ manejar_error() {
     exit $codigo
 }
 
-# Variables globales para control de señales
-SIGNAL_RECIBIDA=""
-EN_APAGADO=0
+# Configuración completa de traps
+configurar_traps() {
+    # Trap para errores (ERR)
+    trap 'manejar_error "$LINENO" "$BASH_COMMAND" "$?"' ERR
+
+    # Trap para salida (EXIT)
+    trap 'limpiar_recursos' EXIT
+
+    # Traps para señales estándar
+    trap 'manejar_signal "INT"' INT      # Ctrl+C
+    trap 'manejar_signal "TERM"' TERM    # Terminación normal
+    trap 'manejar_signal "HUP"' HUP      # Hangup/Recarga
+    trap 'manejar_signal "USR1"' USR1    # Señal usuario 1
+    trap 'manejar_signal "USR2"' USR2    # Señal usuario 2
+    trap 'manejar_signal "QUIT"' QUIT    # Quit
+
+    # Señales adicionales
+    trap 'manejar_signal "TSTP"' TSTP    # Terminal stop (Ctrl+Z)
+    trap 'manejar_signal "CONT"' CONT    # Continuar después de stop
+    trap 'manejar_signal "ALRM"' ALRM    # Alarma/timeout
+    trap 'manejar_signal "PIPE"' PIPE    # Pipe rota
+
+    # Nota: SIGKILL (9) no puede ser atrapado
+    log_mensaje "INFO" "Traps configurados para ERR, EXIT, INT, TERM, HUP, USR1, USR2, QUIT, TSTP, CONT, ALRM, PIPE"
+}
 
 # Función mejorada para manejar señales
 manejar_signal() {
     local signal="$1"
 
     # Evitar manejo múltiple de señales
-    if [[ $EN_APAGADO -eq 1 ]]; then
+    if [[ $EN_APAGADO -eq 1 ]] && [[ "$signal" =~ ^(INT|TERM|QUIT)$ ]]; then
         log_mensaje "WARN" "Ya se está procesando una señal de apagado"
         return
     fi
 
-    SIGNAL_RECIBIDA="$signal"
+    SIGNAL_RECIBIDA=1
 
     case "$signal" in
         INT)
@@ -238,6 +355,61 @@ manejar_signal() {
             exit $EXIT_ERROR_SIGNAL
             ;;
 
+        TSTP)
+            log_mensaje "INFO" "Recibida señal SIGTSTP (Ctrl+Z) - pausando proceso"
+
+            # Pausar el proceso
+            if [[ -f "$PID_FILE" ]]; then
+                local pid=$(cat "$PID_FILE")
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -STOP "$pid" 2>/dev/null
+                    log_mensaje "INFO" "Proceso $pid pausado"
+                    echo "Proceso pausado. Use 'kill -CONT $pid' para continuar"
+                fi
+            fi
+            ;;
+
+        CONT)
+            log_mensaje "INFO" "Recibida señal SIGCONT - reanudando proceso"
+
+            # Reanudar el proceso
+            if [[ -f "$PID_FILE" ]]; then
+                local pid=$(cat "$PID_FILE")
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -CONT "$pid" 2>/dev/null
+                    log_mensaje "INFO" "Proceso $pid reanudado"
+                fi
+            fi
+            ;;
+
+        ALRM)
+            log_mensaje "WARN" "Recibida señal SIGALRM - timeout/alarma"
+
+            # Verificar estado del proceso
+            if proceso_activo; then
+                log_mensaje "WARN" "Proceso activo durante alarma - verificando salud"
+                verificar_estado
+            else
+                log_mensaje "ERROR" "Proceso inactivo en alarma - reiniciando"
+                iniciar_proceso
+            fi
+            ;;
+
+        PIPE)
+            log_mensaje "ERROR" "Recibida señal SIGPIPE - pipe rota"
+
+            # Intentar reconectar o limpiar recursos
+            log_mensaje "INFO" "Intentando recuperar de pipe rota"
+
+            # Verificar si hay procesos zombies
+            local zombies=$(ps aux | grep -c "[Zz]ombie" || echo 0)
+            if [[ $zombies -gt 0 ]]; then
+                log_mensaje "WARN" "Detectados $zombies procesos zombie"
+                # Limpiar procesos zombies si es posible
+                wait 2>/dev/null
+            fi
+            ;;
+
         *)
             log_mensaje "WARN" "Señal no manejada: $signal"
             ;;
@@ -258,16 +430,11 @@ proceso_activo() {
     return 1
 }
 
-# Configurar traps mejorados para manejo de señales
+# Configurar traps completos para manejo de señales
 set -E
-trap 'manejar_error $LINENO "$BASH_COMMAND" $?' ERR
-trap 'limpiar_recursos' EXIT
-trap 'manejar_signal INT' INT
-trap 'manejar_signal TERM' TERM
-trap 'manejar_signal HUP' HUP
-trap 'manejar_signal USR1' USR1
-trap 'manejar_signal USR2' USR2
-trap 'manejar_signal QUIT' QUIT
+
+# Llamar a la función de configuración de traps
+configurar_traps
 
 # FUNCIONES DE GESTIÓN DE PROCESOS
 
@@ -438,12 +605,221 @@ verificar_estado() {
 
 # FUNCIÓN PRINCIPAL Y PUNTO DE ENTRADA
 
+# Función para control via systemctl
+controlar_servicio_systemd() {
+    local accion="$1"
+    local servicio="gestor-web.service"
+
+    # Verificar si systemd está disponible
+    if ! command -v systemctl >/dev/null 2>&1; then
+        log_mensaje "ERROR" "systemctl no está disponible en este sistema"
+        return $EXIT_ERROR_DEPENDENCIA
+    fi
+
+    # Verificar si el servicio está instalado
+    if ! systemctl list-unit-files 2>/dev/null | grep -q "$servicio"; then
+        log_mensaje "WARN" "Servicio $servicio no está instalado"
+        log_mensaje "INFO" "Use 'sudo systemd/gestionar-servicio.sh instalar' para instalar"
+        return $EXIT_ERROR_CONFIGURACION
+    fi
+
+    case "$accion" in
+        start)
+            log_mensaje "INFO" "Iniciando servicio via systemctl..."
+            if sudo systemctl start "$servicio"; then
+                log_mensaje "INFO" "Servicio iniciado correctamente"
+                sudo systemctl status "$servicio" --no-pager | head -10
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al iniciar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        stop)
+            log_mensaje "INFO" "Deteniendo servicio via systemctl..."
+            if sudo systemctl stop "$servicio"; then
+                log_mensaje "INFO" "Servicio detenido correctamente"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al detener servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        restart)
+            log_mensaje "INFO" "Reiniciando servicio via systemctl..."
+            if sudo systemctl restart "$servicio"; then
+                log_mensaje "INFO" "Servicio reiniciado correctamente"
+                sudo systemctl status "$servicio" --no-pager | head -10
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al reiniciar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        reload)
+            log_mensaje "INFO" "Recargando configuración via systemctl..."
+            if sudo systemctl reload "$servicio"; then
+                log_mensaje "INFO" "Configuración recargada correctamente"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al recargar configuración"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        status)
+            log_mensaje "INFO" "Estado del servicio systemd:"
+            sudo systemctl status "$servicio" --no-pager || true
+            echo ""
+            log_mensaje "INFO" "Últimas líneas del journal:"
+            sudo journalctl -u "$servicio" -n 10 --no-pager || true
+            return $EXIT_SUCCESS
+            ;;
+        enable)
+            log_mensaje "INFO" "Habilitando servicio para inicio automático..."
+            if sudo systemctl enable "$servicio"; then
+                log_mensaje "INFO" "Servicio habilitado para inicio automático"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al habilitar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        disable)
+            log_mensaje "INFO" "Deshabilitando inicio automático..."
+            if sudo systemctl disable "$servicio"; then
+                log_mensaje "INFO" "Inicio automático deshabilitado"
+                return $EXIT_SUCCESS
+            else
+                log_mensaje "ERROR" "Error al deshabilitar servicio"
+                return $EXIT_ERROR_PROCESO
+            fi
+            ;;
+        *)
+            log_mensaje "ERROR" "Acción desconocida: $accion"
+            return $EXIT_ERROR_VALIDACION
+            ;;
+    esac
+}
+
+# Función para analizar logs con journalctl
+analizar_logs() {
+    local servicio="gestor-web.service"
+    local desde="${1:-1 hour ago}"
+
+    log_mensaje "INFO" "=== Análisis de logs del sistema ==="
+
+    # Verificar si journalctl está disponible
+    if ! command -v journalctl >/dev/null 2>&1; then
+        log_mensaje "WARN" "journalctl no disponible, analizando logs tradicionales"
+        analizar_logs_tradicionales
+        return $?
+    fi
+
+    # Si systemd está disponible, analizar logs del servicio
+    if systemctl list-unit-files 2>/dev/null | grep -q "$servicio"; then
+        echo ""
+        echo "=== Logs del servicio systemd ==="
+
+        # Contar mensajes por nivel usando awk
+        echo ""
+        echo "Distribución de mensajes (última hora):"
+        journalctl -u "$servicio" --since "$desde" --no-pager 2>/dev/null | \
+            awk '/INFO/ {info++}
+                 /WARN/ {warn++}
+                 /ERROR/ {error++}
+                 END {
+                     printf "  ✓ INFO:  %d mensajes\n", info+0
+                     printf "  ⚠ WARN:  %d mensajes\n", warn+0
+                     printf "  ✗ ERROR: %d mensajes\n", error+0
+                 }'
+
+        # Mostrar últimos errores
+        echo ""
+        echo "Últimos errores del servicio:"
+        journalctl -u "$servicio" --since "$desde" --no-pager 2>/dev/null | \
+            grep "ERROR" | \
+            tail -5 || echo "  No se encontraron errores recientes"
+
+        # Análisis de reinicios
+        echo ""
+        echo "Reinicios del servicio hoy:"
+        local reinicios=$(journalctl -u "$servicio" --since today --no-pager 2>/dev/null | \
+            grep -c "Started\|Stopped" || echo "0")
+        echo "  Cantidad de reinicios: $reinicios"
+
+        # Tiempo de actividad
+        echo ""
+        echo "Estado actual del servicio:"
+        if systemctl is-active "$servicio" >/dev/null 2>&1; then
+            local uptime=$(systemctl show "$servicio" --property=ActiveEnterTimestamp | cut -d= -f2)
+            echo "  ✓ Servicio activo desde: $uptime"
+        else
+            echo "  ✗ Servicio no activo"
+        fi
+    fi
+
+    # Analizar logs tradicionales también
+    echo ""
+    echo "=== Logs del proceso tradicional ==="
+    analizar_logs_tradicionales
+
+    return $EXIT_SUCCESS
+}
+
+# Función auxiliar para analizar logs tradicionales
+analizar_logs_tradicionales() {
+    # Verificar si existe el archivo de log
+    if [[ ! -f "$LOG_FILE" ]]; then
+        log_mensaje "INFO" "No hay archivo de log tradicional"
+        return $EXIT_SUCCESS
+    fi
+
+    echo ""
+    echo "Archivo de log: $LOG_FILE"
+
+    # Tamaño del archivo
+    local tamano=$(du -h "$LOG_FILE" 2>/dev/null | cut -f1)
+    echo "Tamaño: $tamano"
+
+    # Contar líneas totales
+    local total_lineas=$(wc -l < "$LOG_FILE" 2>/dev/null)
+    echo "Total de líneas: $total_lineas"
+
+    # Análisis con awk
+    echo ""
+    echo "Análisis del contenido:"
+
+    # Extraer y analizar tiempos
+    if grep -q "Release:" "$LOG_FILE" 2>/dev/null; then
+        echo ""
+        echo "Versiones detectadas:"
+        awk '/Release:/ {releases[$7]++}
+             END {for (r in releases) printf "  %s: %d veces\n", r, releases[r]}' "$LOG_FILE"
+    fi
+
+    # Extraer puertos utilizados
+    if grep -q "Puerto:" "$LOG_FILE" 2>/dev/null; then
+        echo ""
+        echo "Puertos utilizados:"
+        awk -F'Puerto: ' '/Puerto:/ {ports[$2]++}
+             END {for (p in ports) printf "  Puerto %s: %d veces\n", p, ports[p]}' "$LOG_FILE"
+    fi
+
+    # Mostrar últimas líneas
+    echo ""
+    echo "Últimas 10 entradas del log:"
+    tail -10 "$LOG_FILE" | sed 's/^/  /'
+
+    return $EXIT_SUCCESS
+}
+
 # Función principal
 main() {
     local comando="${1:-ayuda}"
     local resultado=0
 
     case "$comando" in
+        # Comandos tradicionales
         iniciar)
             iniciar_proceso
             resultado=$?
@@ -456,11 +832,103 @@ main() {
             verificar_estado
             resultado=$?
             ;;
+        # Comandos de systemctl
+        systemctl)
+            shift
+            local subcomando="${1:-}"
+            case "$subcomando" in
+                start|stop|restart|reload|status|enable|disable)
+                    controlar_servicio_systemd "$subcomando"
+                    resultado=$?
+                    ;;
+                *)
+                    echo "Uso: $SCRIPT_NAME systemctl {start|stop|restart|reload|status|enable|disable}"
+                    resultado=$EXIT_ERROR_VALIDACION
+                    ;;
+            esac
+            ;;
+        # Alias directos para systemctl
+        start|stop|restart|reload)
+            controlar_servicio_systemd "$comando"
+            resultado=$?
+            ;;
+        # Comando de análisis de logs
+        logs|analizar-logs)
+            shift
+            analizar_logs "${1:-1 hour ago}"
+            resultado=$?
+            ;;
+        # Comando de análisis avanzado con awk
+        metricas|analizar-metricas)
+            # Ejecutar script de análisis avanzado
+            local script_metricas="$SCRIPT_DIR/analizar_metricas.sh"
+            if [[ -x "$script_metricas" ]]; then
+                "$script_metricas"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de métricas no encontrado: $script_metricas"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
+        # Comando de verificación de sockets
+        sockets|puertos)
+            shift
+            local script_sockets="$SCRIPT_DIR/verificar_sockets.sh"
+            if [[ -x "$script_sockets" ]]; then
+                "$script_sockets" "${1:-puerto}" "$PORT"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de sockets no encontrado: $script_sockets"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
+        # Comando de procesamiento con toolkit
+        toolkit|procesar)
+            shift
+            local script_toolkit="$SCRIPT_DIR/procesador_toolkit.sh"
+            if [[ -x "$script_toolkit" ]]; then
+                "$script_toolkit" "${1:-todo}"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de toolkit no encontrado: $script_toolkit"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
+        # Comando de sincronización y backup con rsync
+        backup|rsync|sincronizar)
+            shift
+            local script_rsync="$SCRIPT_DIR/sincronizar_rsync.sh"
+            if [[ -x "$script_rsync" ]]; then
+                "$script_rsync" "${1:-ayuda}" "${@:2}"
+                resultado=$?
+            else
+                log_mensaje "ERROR" "Script de sincronización no encontrado: $script_rsync"
+                resultado=$EXIT_ERROR_CONFIGURACION
+            fi
+            ;;
         *)
-            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado}"
-            echo "  iniciar - Inicia el proceso gestor"
-            echo "  detener - Detiene el proceso gestor"
-            echo "  estado  - Muestra el estado actual"
+            echo "Uso: $SCRIPT_NAME {iniciar|detener|estado|logs|metricas|sockets|toolkit|backup|start|stop|restart|reload|systemctl}"
+            echo ""
+            echo "Comandos básicos (sin systemd):"
+            echo "  iniciar  - Inicia el proceso gestor"
+            echo "  detener  - Detiene el proceso gestor"
+            echo "  estado   - Muestra el estado actual"
+            echo "  logs     - Analiza logs del sistema"
+            echo "  metricas - Análisis avanzado con awk"
+            echo "  sockets  - Verificar puertos y conexiones"
+            echo "  toolkit  - Procesamiento con cut y tee"
+            echo "  backup   - Sincronización y backup con rsync"
+            echo ""
+            echo "Comandos systemd:"
+            echo "  start    - Inicia servicio via systemctl"
+            echo "  stop     - Detiene servicio via systemctl"
+            echo "  restart  - Reinicia servicio via systemctl"
+            echo "  reload   - Recarga configuración via systemctl"
+            echo ""
+            echo "Control avanzado:"
+            echo "  systemctl status  - Ver estado detallado del servicio"
+            echo "  systemctl enable  - Habilitar inicio automático"
+            echo "  systemctl disable - Deshabilitar inicio automático"
             resultado=$EXIT_ERROR_VALIDACION
             ;;
     esac
