@@ -23,6 +23,54 @@ Crear unidad systemd para gestor de procesos
 
 4. Documentación completa en `systemd/README.md`
 
+## T4.5: Tests Ampliados - Alumno 3
+
+**Decisión técnica**: Crear suite completa de tests para gestión de procesos con Bats que valide funcionalidades críticas del gestor.
+
+**Implementación**:
+1. Creación de `tests/test_procesos.bats` con 9 casos de prueba:
+   - Manejo de señales SIGTERM con función trap
+   - Validación de códigos de salida específicos (0-9)
+   - Verificación de permisos y creación de directorios
+   - Manejo de PID files y prevención de múltiples instancias
+   - Integración con systemctl y unidades de sistema
+   - Validación de variables de entorno requeridas
+   - Funcionalidad de logging y rotación de logs
+   - Manejo de timeouts y procesos colgados
+   - Prueba de resistencia con múltiples señales concurrentes
+
+2. Configuración robusta de setup/teardown:
+   - Limpieza automática de procesos de prueba
+   - Gestión de archivos temporales
+   - Variables de entorno específicas para tests
+   - Prevención de conflictos entre tests
+
+**Evidencia**:
+```bash
+$ ls -la tests/test_procesos.bats
+-rwxr-xr-x test_procesos.bats
+
+$ bats tests/test_procesos.bats
+✓ Gestor maneja señales SIGTERM correctamente
+✓ Gestor de procesos valida códigos de salida específicos
+✓ Verificación de permisos y creación de directorios
+✓ Manejo de PID file y prevención de múltiples instancias
+✓ Integración con systemctl y unidades de sistema
+✓ Validación de variables de entorno requeridas
+✓ Funcionalidad de logging y rotación de logs
+✓ Manejo de timeouts y procesos colgados
+✓ Prueba de resistencia con múltiples señales concurrentes
+
+9 tests, 0 failures
+```
+
+**Características destacadas**:
+- Tests de manejo de señales con scripts auxiliares
+- Validación de códigos de salida específicos del proyecto
+- Pruebas de resistencia y concurrencia
+- Integración real con systemd cuando está disponible
+- Limpieza automática para evitar interferencias entre tests
+
 **Evidencia**:
 ```bash
 $ ls -la systemd/

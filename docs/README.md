@@ -102,6 +102,10 @@ Ambos scripts utilizan códigos de salida específicos según el tipo de error:
 - `dig` - Para consultas DNS (Sprint 2)
 - `openssl` - Para verificación TLS (Sprint 2)
 
+### Testing
+- `bats` - Framework de testing para Bash
+- `shellcheck` - Análisis estático de scripts (opcional)
+
 ### Logs
 
 Los scripts generan logs en:
@@ -151,6 +155,46 @@ $ kill -HUP $(cat /tmp/gestor-web.pid)
 $ ./src/gestor_procesos.sh detener
 ```
 
+## Testing
+
+El proyecto incluye una suite completa de tests implementada con Bats (Bash Automated Testing System).
+
+### Ejecutar Tests
+
+```bash
+# Ejecutar todos los tests
+make test
+
+# Ejecutar tests específicos
+bats tests/test_basico.bats
+bats tests/test_procesos.bats
+bats tests/test_systemd.bats
+```
+
+### Suite de Tests Disponible
+
+#### `tests/test_basico.bats`
+- Verificación de scripts y permisos
+- Tests básicos de funcionalidad
+- Validación de Makefile targets
+
+#### `tests/test_procesos.bats` (Sprint 2)
+- Manejo de señales SIGTERM con trap
+- Validación de códigos de salida específicos
+- Verificación de permisos y directorios
+- Gestión de PID files y múltiples instancias
+- Integración con systemctl
+- Tests de variables de entorno
+- Funcionalidad de logging
+- Manejo de timeouts y procesos colgados
+- Pruebas de resistencia con señales concurrentes
+
+#### `tests/test_systemd.bats`
+- Verificación de archivos systemd
+- Tests de instalación de servicios
+- Validación de configuración
+
+Los tests incluyen configuración automática de setup/teardown para limpiar procesos y archivos temporales, evitando interferencias entre ejecuciones.
 
 ## Equipo
 

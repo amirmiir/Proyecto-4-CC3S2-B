@@ -55,7 +55,12 @@ test:
 	@echo "Ejecutando pruebas..."
 	@command -v bats >/dev/null 2>&1 || { echo "Error: bats no está instalado. Instalar con: sudo apt install bats"; exit 1; }
 	@echo "[INFO] Ejecutando suite de tests Bats..."
+	@echo "[INFO] Tests básicos..."
 	@bats tests/test_basico.bats
+	@echo "[INFO] Tests de procesos (Sprint 2)..."
+	@bats tests/test_procesos.bats
+	@echo "[INFO] Tests de systemd..."
+	@bats tests/test_systemd.bats
 	@echo "[INFO] Todos los tests completados exitosamente"
 
 run: 
