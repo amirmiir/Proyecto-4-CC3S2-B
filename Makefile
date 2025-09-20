@@ -59,6 +59,8 @@ test:
 	@bats tests/test_basico.bats
 	@echo "[INFO] Tests de procesos (Sprint 2)..."
 	@bats tests/test_procesos.bats
+	@echo "[INFO] Tests de redes HTTP/DNS/TLS (Sprint 2)..."
+	@bats tests/test_redes.bats
 	@echo "[INFO] Tests de systemd..."
 	@bats tests/test_systemd.bats
 	@echo "[INFO] Todos los tests completados exitosamente"

@@ -71,6 +71,65 @@ $ bats tests/test_procesos.bats
 - Integración real con systemd cuando está disponible
 - Limpieza automática para evitar interferencias entre tests
 
+## T5.5: Tests de Redes - Alumno 3
+
+**Decisión técnica**: Implementar suite completa de tests para monitoreo de redes HTTP/DNS/TLS que valide todas las funcionalidades del monitor_redes.sh.
+
+**Implementación**:
+1. Creación de `tests/test_redes.bats` con 13 casos de prueba:
+   - Verificación HTTP básica con httpbin.org
+   - Manejo de códigos de estado HTTP específicos (200, 404)
+   - Validación de resolución DNS con dominios reales
+   - Manejo de servidores DNS inválidos y timeouts
+   - Ejecución de análisis TLS/HTTPS con sitios seguros
+   - Comparación HTTP vs HTTPS con métricas de rendimiento
+   - Verificaciones completas (modo "todo")
+   - Uso de herramientas Unix toolkit (curl, dig, awk)
+   - Manejo apropiado de timeouts y conexiones lentas
+   - Validación de parámetros de entrada y comandos inválidos
+   - Generación de logs con formato correcto
+   - Integración con tests de puertos netcat
+   - Validación de códigos de salida específicos (0-9)
+
+2. Configuración avanzada de setup/teardown:
+   - Verificación de conectividad de red antes de tests
+   - Creación de directorios temporales específicos
+   - Limpieza automática de logs y archivos de resultado
+   - Variables de entorno optimizadas para tests de red
+   - Timeouts apropiados para evitar tests colgados
+
+**Evidencia**:
+```bash
+$ ls -la tests/test_redes.bats
+-rwxr-xr-x test_redes.bats
+
+$ bats tests/test_redes.bats
+✓ Monitor de redes ejecuta verificación HTTP básica
+✓ Monitor de redes maneja URLs HTTP con códigos de estado específicos
+✓ Monitor de redes valida resolución DNS correctamente
+✓ Monitor de redes maneja servidores DNS inválidos
+✓ Monitor de redes ejecuta análisis TLS/HTTPS
+✓ Monitor de redes compara HTTP vs HTTPS correctamente
+✓ Monitor de redes ejecuta verificaciones completas (todo)
+✓ Monitor de redes usa herramientas Unix toolkit apropiadamente
+✓ Monitor de redes maneja timeouts apropiadamente
+✓ Monitor de redes valida parámetros de entrada
+✓ Monitor de redes genera logs con formato correcto
+✓ Monitor de redes integra con tests de puertos netcat
+✓ Monitor de redes valida códigos de salida específicos
+
+13 tests, 0 failures
+```
+
+**Características destacadas**:
+- Tests reales con servicios HTTP externos (httpbin.org)
+- Validación de resolución DNS con servidores reales (8.8.8.8)
+- Pruebas de análisis TLS con certificados reales
+- Manejo robusto de timeouts y conexiones lentas
+- Integración con herramientas Unix toolkit (curl, dig, awk, nc)
+- Tests de resistencia con servidores DNS inválidos
+- Validación de códigos de salida específicos del proyecto
+
 **Evidencia**:
 ```bash
 $ ls -la systemd/

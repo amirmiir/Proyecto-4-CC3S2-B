@@ -189,6 +189,19 @@ bats tests/test_systemd.bats
 - Manejo de timeouts y procesos colgados
 - Pruebas de resistencia con señales concurrentes
 
+#### `tests/test_redes.bats` (Sprint 2)
+- Verificación HTTP con códigos de estado específicos
+- Validación de resolución DNS con servidores reales
+- Análisis TLS/HTTPS y comparación de protocolos
+- Manejo de timeouts y conexiones lentas
+- Integración con herramientas Unix toolkit (curl, dig, awk, nc)
+- Tests de resistencia con servidores inválidos
+- Validación de parámetros de entrada
+- Generación de logs con formato correcto
+- Verificaciones completas (modo "todo")
+- Integración con tests de puertos netcat
+- Validación de códigos de salida específicos
+
 #### `tests/test_systemd.bats`
 - Verificación de archivos systemd
 - Tests de instalación de servicios
