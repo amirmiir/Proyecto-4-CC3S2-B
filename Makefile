@@ -1,4 +1,4 @@
-.PHONY: tools build test run stop status logs clean help
+.PHONY: tools build test run pack stop status logs clean help
 tools:
 	@echo "Verificando herramientas necesarias..."
 	@command -v curl >/dev/null 2>&1 || { echo "Error: curl no está instalado"; exit 1; }
@@ -56,6 +56,7 @@ build: tools
 	@echo "[INFO] Verificando artefactos..."
 	@ls -la out/
 	@echo "[INFO] Build completado exitosamente"
+	@touch out/build.timestamp
 
 test:
 	@echo "Ejecutando pruebas..."
@@ -186,6 +187,22 @@ clean:
 	@rm -f /tmp/monitor-*.log /tmp/monitor-results.json 2>/dev/null || true
 	@echo "[INFO] Limpieza completada"
 
+# Target pack - Generar paquete reproducible en dist/
+pack: out/build.timestamp
+	@echo "Generando paquete reproducible en dist/..."
+	@mkdir -p dist/
+	@VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo 'v1.0.0'); \
+	PACKAGE_NAME="gestor-web-$$VERSION"; \
+	echo "[INFO] Creando paquete: $$PACKAGE_NAME"; \
+	cp -r out/ "dist/$$PACKAGE_NAME"; \
+	cd dist/ && tar -czf "$$PACKAGE_NAME.tar.gz" "$$PACKAGE_NAME/"; \
+	echo "[INFO] Paquete creado: dist/$$PACKAGE_NAME.tar.gz"
+
+# Caché incremental - solo rebuild si hay cambios
+out/build.timestamp: src/*.sh systemd/* docs/* .env.example Makefile
+	@echo "[INFO] Detectados cambios, ejecutando build..."
+	@$(MAKE) build
+
 help:
 	@echo "Uso: make [target]"
 	@echo ""
@@ -194,6 +211,7 @@ help:
 	@echo "  build    - Construir artefactos del proyecto"
 	@echo "  test     - Ejecutar suite completa de tests"
 	@echo "  run      - Ejecutar flujo completo (build + monitoreo + gestor)"
+	@echo "  pack     - Generar paquete reproducible en dist/"
 	@echo "  clean    - Limpiar archivos generados"
 	@echo ""
 	@echo "TARGETS DE GESTIÓN:"
@@ -207,7 +225,8 @@ help:
 	@echo "  2. make test     # Ejecutar tests"
 	@echo "  3. make run      # Iniciar aplicación"
 	@echo "  4. make status   # Verificar estado"
-	@echo "  5. make stop     # Detener cuando termine"
+	@echo "  5. make pack     # Crear paquete final"
+	@echo "  6. make stop     # Detener cuando termine"
 	@echo ""
 	@echo "VARIABLES DE ENTORNO:"
 	@echo "  PORT     - Puerto del servicio (defecto: 8080)"
